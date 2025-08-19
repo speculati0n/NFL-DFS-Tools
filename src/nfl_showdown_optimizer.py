@@ -1,4 +1,4 @@
-import json5 as json
+import json
 import csv
 import os
 import datetime
@@ -870,3 +870,4 @@ class NFL_Showdown_Optimizer:
                 f.write("%s\n" % lineup_str)
 
         print("Output done.")
+        return out_path
