@@ -1617,6 +1617,7 @@ class NFL_Showdown_Simulator:
                 f.write(
                     f"{p_name},{sd_position},{position},{team},{win_p}%,{top10_p}%,{field_p}%,{proj_own}%,${roi_p}\n"
                 )
+        return out_path
 
     def save_results(self):
         unique = self.output()
@@ -1624,7 +1625,7 @@ class NFL_Showdown_Simulator:
         # First output file
         # include timetsamp in filename, formatted as readable
         now = datetime.datetime.now().strftime("%a_%I_%M_%S%p").lower()
-        out_path = os.path.join(
+        lineups_path = os.path.join(
             os.path.dirname(__file__),
             "../output/{}_sd_sim_lineups_{}_{}_{}.csv".format(
                 self.site, self.field_size, self.num_iterations, now
@@ -1632,28 +1633,29 @@ class NFL_Showdown_Simulator:
         )
         if self.site == "dk":
             if self.use_contest_data:
-                with open(out_path, "w") as f:
+                with open(lineups_path, "w") as f:
                     header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,ROI%,ROI$,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
             else:
-                with open(out_path, "w") as f:
+                with open(lineups_path, "w") as f:
                     header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
         else:
             if self.use_contest_data:
-                with open(out_path, "w") as f:
+                with open(lineups_path, "w") as f:
                     header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,ROI,ROI/Entry Fee,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
             else:
-                with open(out_path, "w") as f:
+                with open(lineups_path, "w") as f:
                     header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
-        self.player_output()
+        exposure_path = self.player_output()
+        return lineups_path, exposure_path

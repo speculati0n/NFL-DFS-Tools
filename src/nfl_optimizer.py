@@ -935,6 +935,7 @@ class NFL_Optimizer:
                 f.write("%s\n" % lineup_str)
 
         print("Output done.")
+        return out_path
 
     def sort_lineup(self, lineup):
         copy_lineup = copy.deepcopy(lineup)
