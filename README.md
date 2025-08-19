@@ -41,6 +41,8 @@ After you have the player data, you must import data from Awesemo, namely the pr
 
 Run `python app.py` to start a local server. The homepage lets you upload projections, player IDs, and optional contest structure or config files. After uploading, you can run the optimizer or simulator and view the resulting tables directly in your browser.
 
+If you prefer Streamlit, run `streamlit run src/main.py` for a lightweight interface that offers similar upload, optimization, and simulation workflows.
+
 ### Command Line
 
 To use the tools, you will need to open a windows console or powershell terminal in the same directory as this repository. To do this, go to the root directory and then navigate to `File > Open Windows Powershell` as seen below.
