@@ -6,6 +6,21 @@
   <body>
     <h1>NFL DFS Tools</h1>
 
+    <h2>Upload Required Files</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+      <label>Site:</label>
+      <input name="site" placeholder="dk or fd" required><br>
+      <label>Projections:</label>
+      <input type="file" name="projections" required><br>
+      <label>Player IDs:</label>
+      <input type="file" name="players" required><br>
+      <label>Contest Structure (optional):</label>
+      <input type="file" name="contest"><br>
+      <label>Config (optional):</label>
+      <input type="file" name="config"><br>
+      <button type="submit">Upload Files</button>
+    </form>
+
     <h2>Optimize Lineups</h2>
     <form action="/optimize" method="post">
       <label>Site:</label>
