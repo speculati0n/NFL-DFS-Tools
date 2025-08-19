@@ -1,92 +1,87 @@
-import sys
-from windows_inhibitor import *
-from nfl_showdown_optimizer import *
-from nfl_optimizer import *
-import time
+import os
+import pandas as pd
+import streamlit as st
 
+from nfl_optimizer import NFL_Optimizer
+from nfl_showdown_optimizer import NFL_Showdown_Optimizer
+from nfl_gpp_simulator import NFL_GPP_Simulator
+from nfl_showdown_simulator import NFL_Showdown_Simulator
 
-def main(arguments):
-    if len(arguments) < 3 or len(arguments) > 7:
-        print("Incorrect usage. Please see `README.md` for proper usage.")
-        exit()
+st.title("NFL DFS Tools")
 
-    site = arguments[1]
-    process = arguments[2]
+# Sidebar for uploading files
+st.sidebar.header("Upload Required Files")
+site_upload = st.sidebar.text_input("Site (dk or fd)")
+projections_file = st.sidebar.file_uploader("Projections CSV", type="csv")
+players_file = st.sidebar.file_uploader("Player IDs CSV", type="csv")
+contest_file = st.sidebar.file_uploader(
+    "Contest Structure CSV (optional)", type="csv"
+)
+config_file = st.sidebar.file_uploader(
+    "Config JSON (optional)", type="json"
+)
 
-    if process == "opto":
-        num_lineups = arguments[3]
-        num_uniques = arguments[4]
-        start = time.time()
-        opto = NFL_Optimizer(site, num_lineups, num_uniques)
+if st.sidebar.button("Save Files"):
+    if site_upload:
+        data_dir = f"{site_upload}_data"
+        os.makedirs(data_dir, exist_ok=True)
+        if projections_file:
+            with open(os.path.join(data_dir, "projections.csv"), "wb") as f:
+                f.write(projections_file.getbuffer())
+        if players_file:
+            with open(os.path.join(data_dir, "player_ids.csv"), "wb") as f:
+                f.write(players_file.getbuffer())
+        if contest_file and contest_file.name:
+            with open(os.path.join(data_dir, "contest_structure.csv"), "wb") as f:
+                f.write(contest_file.getbuffer())
+        if config_file and config_file.name:
+            with open("config.json", "wb") as f:
+                f.write(config_file.getbuffer())
+        st.sidebar.success("Files saved.")
+    else:
+        st.sidebar.error("Please specify a site before saving.")
+
+# Optimizer section
+st.header("Optimize Lineups")
+with st.form("optimize"):
+    site_opt = st.text_input("Site", key="site_opt")
+    num_lineups = st.number_input("Number of Lineups", min_value=1, value=1, step=1)
+    num_uniques = st.number_input("Number of Uniques", min_value=1, value=1, step=1)
+    mode_opt = st.selectbox("Mode", ["classic", "showdown"], key="mode_opt")
+    submitted_opt = st.form_submit_button("Run Optimizer")
+    if submitted_opt:
+        if mode_opt == "showdown":
+            opto = NFL_Showdown_Optimizer(site_opt, num_lineups, num_uniques)
+        else:
+            opto = NFL_Optimizer(site_opt, num_lineups, num_uniques)
         opto.optimize()
-        opto.output()
-        end = time.time()
-        elapsed = end - start
-        minutes, seconds = divmod(elapsed, 60)
-        print(f"Elapsed time: {int(minutes)} minutes, {int(seconds)} seconds")
+        output_path = opto.output()
+        df = pd.read_csv(output_path)
+        st.subheader("Lineups")
+        st.dataframe(df)
 
-    elif process == "sd_opto":
-        num_lineups = arguments[3]
-        num_uniques = arguments[4]
-        opto = NFL_Showdown_Optimizer(site, num_lineups, num_uniques)
-        opto.optimize()
-        opto.output()
-
-    elif process == "sd_sim":
-        import nfl_showdown_simulator
-
-        field_size = -1
-        num_iterations = -1
-        use_contest_data = False
-        use_file_upload = False
-        match_lineup_input_to_field_size = True
-        if arguments[3] == "cid":
-            use_contest_data = True
+# Simulation section
+st.header("Simulate Tournament")
+with st.form("simulate"):
+    site_sim = st.text_input("Site", key="site_sim")
+    field_size = st.number_input("Field Size", min_value=1, value=10, step=1)
+    num_iterations = st.number_input("Iterations", min_value=1, value=10, step=1)
+    mode_sim = st.selectbox("Mode", ["classic", "showdown"], key="mode_sim")
+    submitted_sim = st.form_submit_button("Run Simulation")
+    if submitted_sim:
+        if mode_sim == "showdown":
+            sim = NFL_Showdown_Simulator(site_sim, field_size, num_iterations, False, False)
+            sim.generate_field_lineups()
+            sim.run_tournament_simulation()
+            lineup_path, exposure_path = sim.save_results()
         else:
-            field_size = arguments[3]
-
-        if arguments[4] == "file":
-            use_file_upload = True
-            num_iterations = arguments[5]
-        else:
-            num_iterations = arguments[4]
-        # if 'match' in arguments:
-        #    match_lineup_input_to_field_size = True
-        sim = nfl_showdown_simulator.NFL_Showdown_Simulator(
-            site, field_size, num_iterations, use_contest_data, use_file_upload
-        )
-        sim.generate_field_lineups()
-        sim.run_tournament_simulation()
-        sim.save_results()
-
-    elif process == "sim":
-        import nfl_gpp_simulator
-
-        site = arguments[1]
-        field_size = -1
-        num_iterations = -1
-        use_contest_data = False
-        use_file_upload = False
-        match_lineup_input_to_field_size = True
-        if arguments[3] == "cid":
-            use_contest_data = True
-        else:
-            field_size = arguments[3]
-
-        if arguments[4] == "file":
-            use_file_upload = True
-            num_iterations = arguments[5]
-        else:
-            num_iterations = arguments[4]
-        # if 'match' in arguments:
-        #    match_lineup_input_to_field_size = True
-        sim = nfl_gpp_simulator.NFL_GPP_Simulator(
-            site, field_size, num_iterations, use_contest_data, use_file_upload
-        )
-        sim.generate_field_lineups()
-        sim.run_tournament_simulation()
-        sim.output()
-
-
-if __name__ == "__main__":
-    main(sys.argv)
+            sim = NFL_GPP_Simulator(site_sim, field_size, num_iterations, False, False)
+            sim.generate_field_lineups()
+            sim.run_tournament_simulation()
+            lineup_path, exposure_path = sim.output()
+        lineup_df = pd.read_csv(lineup_path)
+        exposure_df = pd.read_csv(exposure_path)
+        st.subheader("Lineups")
+        st.dataframe(lineup_df)
+        st.subheader("Exposure")
+        st.dataframe(exposure_df)
