@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+  <head>
+    <title>{{ title }}</title>
+    <style>
+      table, th, td {border:1px solid #000; border-collapse: collapse; padding:4px;}
+    </style>
+  </head>
+  <body>
+    <h1>{{ title }}</h1>
+    {% for name, table in tables %}
+      <h2>{{ name }}</h2>
+      {{ table|safe }}
+    {% endfor %}
+    <a href="/">Back</a>
+  </body>
+</html>

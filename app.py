@@ -1,7 +1,6 @@
 import os
-import tempfile
-import zipfile
-from flask import Flask, render_template, request, send_file
+import pandas as pd
+from flask import Flask, render_template, request, redirect
 from src.nfl_optimizer import NFL_Optimizer
 from src.nfl_showdown_optimizer import NFL_Showdown_Optimizer
 from src.nfl_gpp_simulator import NFL_GPP_Simulator
@@ -12,6 +11,25 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    site = request.form['site']
+    data_dir = f"{site}_data"
+    os.makedirs(data_dir, exist_ok=True)
+    projections = request.files.get('projections')
+    players = request.files.get('players')
+    contest = request.files.get('contest')
+    config = request.files.get('config')
+    if projections:
+        projections.save(os.path.join(data_dir, 'projections.csv'))
+    if players:
+        players.save(os.path.join(data_dir, 'player_ids.csv'))
+    if contest and contest.filename:
+        contest.save(os.path.join(data_dir, 'contest_structure.csv'))
+    if config and config.filename:
+        config.save('config.json')
+    return redirect('/')
 
 @app.route('/optimize', methods=['POST'])
 def optimize():
@@ -26,7 +44,9 @@ def optimize():
         opto = NFL_Optimizer(site, num_lineups, num_uniques)
     opto.optimize()
     output_path = opto.output()
-    return send_file(output_path, as_attachment=True)
+    df = pd.read_csv(output_path)
+    tables = [("Lineups", df.to_html(index=False))]
+    return render_template('results.html', title='Optimization Results', tables=tables)
 
 @app.route('/simulate', methods=['POST'])
 def simulate():
@@ -46,11 +66,13 @@ def simulate():
         sim.run_tournament_simulation()
         lineup_path, exposure_path = sim.output()
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-    with zipfile.ZipFile(tmp.name, 'w') as zf:
-        zf.write(lineup_path, os.path.basename(lineup_path))
-        zf.write(exposure_path, os.path.basename(exposure_path))
-    return send_file(tmp.name, as_attachment=True, download_name='results.zip')
+    lineup_df = pd.read_csv(lineup_path)
+    exposure_df = pd.read_csv(exposure_path)
+    tables = [
+        ("Lineups", lineup_df.to_html(index=False)),
+        ("Exposure", exposure_df.to_html(index=False)),
+    ]
+    return render_template('results.html', title='Simulation Results', tables=tables)
 
 if __name__ == '__main__':
     app.run(debug=True)
