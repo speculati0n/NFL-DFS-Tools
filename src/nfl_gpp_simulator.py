@@ -5,7 +5,10 @@ import os
 import random
 import time
 import numpy as np
-import pulp as plp
+try:
+    import pulp as plp
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError("The 'pulp' package is required for simulation. Install it with 'pip install pulp'.") from e
 import multiprocessing as mp
 import pandas as pd
 import statistics

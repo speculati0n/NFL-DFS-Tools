@@ -5,7 +5,10 @@ import datetime
 import pytz
 import timedelta
 import numpy as np
-import pulp as plp
+try:
+    import pulp as plp
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError("The 'pulp' package is required for optimization. Install it with 'pip install pulp'.") from e
 import copy
 import itertools
 from random import shuffle, choice

@@ -12,12 +12,16 @@ If you're lazy and don't like reading, you can check this video which covers _mo
 ### System requirements
 
 -   To run the tools, you will need to [install python](https://www.python.org/downloads/) if you don't already have it. These tools were bult on Python >=3.8.2, and may be incompatible with outdated versions of Python.
--   In addition to the base python installation, you will need the following packages:
-    -   [PuLP](https://pypi.org/project/PuLP/) - `pip install pulp`. This is the linear programming solver - the "optimizer" if you will.
-    -   [timedelta](https://pypi.org/project/timedelta/) - `pip install timedelta`. This package makes it easy to interpret dates for late swaptimizing lineups.
-    -   [pytz](https://pypi.org/project/pytz/) - `pip install pytz`. Another helpful package for interpreting dates and late swaptimizing
-    -   [numpy](https://pypi.org/project/numpy/) - `pip install numpy`. This package makes data manipulation and handling matrices easier.
-    -   [pandas](https://pypi.org/project/pandas/) - `pip install pandas`. This package converts pythonic data structures (dicts, lists, etc) to more familiar tabular data structures.
+-   In addition to the base python installation, install the packages listed in `requirements.txt`:
+    `pip install -r requirements.txt`
+
+    The most critical dependencies include:
+    -   [PuLP](https://pypi.org/project/PuLP/) - linear programming solver powering the optimizer.
+    -   [Flask](https://pypi.org/project/Flask/) - powers the optional web interface.
+    -   [timedelta](https://pypi.org/project/timedelta/) - makes it easy to interpret dates for late swaptimizing lineups.
+    -   [pytz](https://pypi.org/project/pytz/) - another helpful package for interpreting dates and late swaptimizing
+    -   [numpy](https://pypi.org/project/numpy/) - makes data manipulation and handling matrices easier.
+    -   [pandas](https://pypi.org/project/pandas/) - converts pythonic data structures (dicts, lists, etc) to more familiar tabular data structures.
 
 To install these tools, you may either clone this repository or download the repository as a ZIP file (see image below) and extract it to the directory of your choosing.
 
