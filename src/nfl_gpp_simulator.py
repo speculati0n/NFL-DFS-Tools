@@ -5,7 +5,10 @@ import os
 import random
 import time
 import numpy as np
-import pulp as plp
+try:
+    import pulp as plp
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError("The 'pulp' package is required for simulation. Install it with 'pip install pulp'.") from e
 import multiprocessing as mp
 import pandas as pd
 import statistics
@@ -2348,13 +2351,13 @@ class NFL_GPP_Simulator:
                     )
             unique[index] = lineup_str
 
-        out_path = os.path.join(
+        lineups_path = os.path.join(
             os.path.dirname(__file__),
             "../output/{}_gpp_sim_lineups_{}_{}.csv".format(
                 self.site, self.field_size, self.num_iterations
             ),
         )
-        with open(out_path, "w") as f:
+        with open(lineups_path, "w") as f:
             if self.site == "dk":
                 if self.use_contest_data:
                     f.write(
@@ -2377,13 +2380,13 @@ class NFL_GPP_Simulator:
             for fpts, lineup_str in unique.items():
                 f.write("%s\n" % lineup_str)
 
-        out_path = os.path.join(
+        exposure_path = os.path.join(
             os.path.dirname(__file__),
             "../output/{}_gpp_sim_player_exposure_{}_{}.csv".format(
                 self.site, self.field_size, self.num_iterations
             ),
         )
-        with open(out_path, "w") as f:
+        with open(exposure_path, "w") as f:
             f.write(
                 "Player,Position,Team,Win%,Top1%,Sim. Own%,Proj. Own%,Avg. Return\n"
             )
@@ -2433,3 +2436,5 @@ class NFL_GPP_Simulator:
                         roi_p,
                     )
                 )
+
+        return lineups_path, exposure_path
