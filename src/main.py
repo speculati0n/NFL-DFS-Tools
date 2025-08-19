@@ -1,8 +1,15 @@
 import sys
 from windows_inhibitor import *
-from nfl_showdown_optimizer import *
-from nfl_optimizer import *
 import time
+
+# Defer importing the heavy optimizer modules until we can provide a helpful
+# message if a required dependency like PuLP is missing.
+try:
+    from nfl_showdown_optimizer import *
+    from nfl_optimizer import *
+except ModuleNotFoundError as e:
+    print(e)
+    sys.exit(1)
 
 
 def main(arguments):

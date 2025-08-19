@@ -1,9 +1,12 @@
-import json5 as json
+import json
 import csv
 import os
 import datetime
 import numpy as np
-import pulp as plp
+try:
+    import pulp as plp
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError("The 'pulp' package is required for optimization. Install it with 'pip install pulp'.") from e
 import itertools
 
 
@@ -870,3 +873,4 @@ class NFL_Showdown_Optimizer:
                 f.write("%s\n" % lineup_str)
 
         print("Output done.")
+        return out_path

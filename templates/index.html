@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <title>NFL DFS Tools</title>
+  </head>
+  <body>
+    <h1>NFL DFS Tools</h1>
+
+    <h2>Optimize Lineups</h2>
+    <form action="/optimize" method="post">
+      <label>Site:</label>
+      <input name="site" placeholder="dk or fd" required><br>
+      <label>Number of Lineups:</label>
+      <input name="num_lineups" type="number" required><br>
+      <label>Number of Uniques:</label>
+      <input name="num_uniques" type="number" value="1" required><br>
+      <label>Mode:</label>
+      <select name="mode">
+        <option value="classic">Classic</option>
+        <option value="showdown">Showdown</option>
+      </select>
+      <button type="submit">Run Optimizer</button>
+    </form>
+
+    <h2>Simulate Tournament</h2>
+    <form action="/simulate" method="post">
+      <label>Site:</label>
+      <input name="site" placeholder="dk or fd" required><br>
+      <label>Field Size:</label>
+      <input name="field_size" type="number" required><br>
+      <label>Iterations:</label>
+      <input name="num_iterations" type="number" required><br>
+      <label>Mode:</label>
+      <select name="mode">
+        <option value="classic">Classic</option>
+        <option value="showdown">Showdown</option>
+      </select>
+      <button type="submit">Run Simulation</button>
+    </form>
+  </body>
+</html>
