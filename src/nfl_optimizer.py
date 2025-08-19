@@ -1,4 +1,4 @@
-import json5 as json
+import json
 import csv
 import os
 import datetime
