@@ -19,6 +19,12 @@ If you're lazy and don't like reading, you can check this video which covers _mo
     -   [numpy](https://pypi.org/project/numpy/) - `pip install numpy`. This package makes data manipulation and handling matrices easier.
     -   [pandas](https://pypi.org/project/pandas/) - `pip install pandas`. This package converts pythonic data structures (dicts, lists, etc) to more familiar tabular data structures.
 
+If you'd like to install all dependencies in one step, you can use the provided `requirements.txt` file:
+
+```bash
+pip install -r requirements.txt
+```
+
 To install these tools, you may either clone this repository or download the repository as a ZIP file (see image below) and extract it to the directory of your choosing.
 
 ![Download image](readme_images/download.png)
