@@ -15,7 +15,7 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    site = request.form['site']
+    site = request.form['site'].strip().lower()
     data_dir = os.path.join(BASE_DIR, f"{site}_data")
     os.makedirs(data_dir, exist_ok=True)
     projections = request.files.get('projections')
@@ -34,7 +34,7 @@ def upload():
 
 @app.route('/optimize', methods=['POST'])
 def optimize():
-    site = request.form['site']
+    site = request.form['site'].strip().lower()
     num_lineups = request.form['num_lineups']
     num_uniques = request.form['num_uniques']
     mode = request.form.get('mode', 'classic')
@@ -51,7 +51,7 @@ def optimize():
 
 @app.route('/simulate', methods=['POST'])
 def simulate():
-    site = request.form['site']
+    site = request.form['site'].strip().lower()
     field_size = request.form['field_size']
     num_iterations = request.form['num_iterations']
     mode = request.form.get('mode', 'classic')
