@@ -507,9 +507,6 @@ class NFL_GPP_Simulator:
                             key = (player_name, pos_str, team)
                             if key in self.player_dict:
                                 self.player_dict[key]["ID"] = str(row["draftableid"])
-                                self.player_dict[key]["Team"] = team
-                                self.player_dict[key]["Opp"] = ""
-                                self.player_dict[key]["Matchup"] = ()
                                 matched = True
                                 break
                         else:
@@ -517,9 +514,6 @@ class NFL_GPP_Simulator:
                                 pname, ppos, pteam = key
                                 if pname == player_name and ppos == pos_str:
                                     self.player_dict[key]["ID"] = str(row["draftableid"])
-                                    self.player_dict[key]["Team"] = pteam
-                                    self.player_dict[key]["Opp"] = ""
-                                    self.player_dict[key]["Matchup"] = ()
                                     matched = True
                                     break
                         if matched:
@@ -547,9 +541,6 @@ class NFL_GPP_Simulator:
                         key = (player_name, pos_str, team)
                         if key in self.player_dict:
                             self.player_dict[key]["ID"] = str(row.get("id", ""))
-                            self.player_dict[key]["Team"] = team
-                            self.player_dict[key]["Opp"] = ""
-                            self.player_dict[key]["Matchup"] = ()
                             break
                     self.id_name_dict[str(row.get("id", ""))] = row.get("nickname") or row.get("displayname", "")
 
