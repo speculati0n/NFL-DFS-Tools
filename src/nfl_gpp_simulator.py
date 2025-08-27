@@ -48,6 +48,7 @@ class NFL_GPP_Simulator:
         7: ["TE"],
         8: ["RB", "WR", "TE"],
     }
+    team_rename_dict = {"LA": "LAR"}
 
     def __init__(
         self,
@@ -94,6 +95,7 @@ class NFL_GPP_Simulator:
 
         player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
+        self.assertPlayerDict()
         self.load_team_stacks()
 
         # ownership_path = os.path.join(
@@ -153,7 +155,6 @@ class NFL_GPP_Simulator:
             self.entry_fee = 0
 
         # self.adjust_default_stdev()
-        self.assertPlayerDict()
         self.num_iterations = int(num_iterations)
         self.get_optimal()
         if self.use_lineup_input:
@@ -491,7 +492,9 @@ class NFL_GPP_Simulator:
                     position.sort()
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
-                    team = row["shortname"]
+                    team = row.get("team") or row.get("teamabbrev")
+                    if team in self.team_rename_dict:
+                        team = self.team_rename_dict[team]
                     pos_str = str(position)
                     names = set()
                     for col in ["displayname", "firstname", "lastname", "shortname"]:
@@ -500,14 +503,29 @@ class NFL_GPP_Simulator:
                             names.add(val)
                     if row.get("firstname") and row.get("lastname"):
                         names.add(f"{row['firstname']} {row['lastname']}")
+                    matched = False
                     for name in names:
                         player_name = name.replace("-", "#").lower().strip()
-                        key = (player_name, pos_str, team)
-                        if key in self.player_dict:
-                            self.player_dict[key]["ID"] = str(row["draftableid"])
-                            self.player_dict[key]["Team"] = team
-                            self.player_dict[key]["Opp"] = ""
-                            self.player_dict[key]["Matchup"] = ()
+                        if team:
+                            key = (player_name, pos_str, team)
+                            if key in self.player_dict:
+                                self.player_dict[key]["ID"] = str(row["draftableid"])
+                                self.player_dict[key]["Team"] = team
+                                self.player_dict[key]["Opp"] = ""
+                                self.player_dict[key]["Matchup"] = ()
+                                matched = True
+                                break
+                        else:
+                            for key in list(self.player_dict.keys()):
+                                pname, ppos, pteam = key
+                                if pname == player_name and ppos == pos_str:
+                                    self.player_dict[key]["ID"] = str(row["draftableid"])
+                                    self.player_dict[key]["Team"] = pteam
+                                    self.player_dict[key]["Opp"] = ""
+                                    self.player_dict[key]["Matchup"] = ()
+                                    matched = True
+                                    break
+                        if matched:
                             break
                     self.id_name_dict[str(row["draftableid"])] = row.get("displayname", "")
                 else:
@@ -519,6 +537,10 @@ class NFL_GPP_Simulator:
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
                     team = row["team"]
+                    if team in self.team_rename_dict:
+                        team = self.team_rename_dict[team]
+                    if self.site == "fd" and team == "JAX":
+                        team = "JAC"
                     pos_str = str(position)
                     names = set()
                     for col in ["nickname", "displayname", "firstname", "lastname", "shortname"]:
@@ -754,11 +776,10 @@ class NFL_GPP_Simulator:
                         "Opp DST": -0.27,
                     }
                 team = row["team"]
-                if team == "LA":
-                    team = "LAR"
-                if self.site == "fd":
-                    if team == "JAX":
-                        team = "JAC"
+                if team in self.team_rename_dict:
+                    team = self.team_rename_dict[team]
+                if self.site == "fd" and team == "JAX":
+                    team = "JAC"
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
