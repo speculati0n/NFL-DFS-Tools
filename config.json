@@ -1,0 +1,64 @@
+{
+    "projection_path": "projections.csv",
+    "player_path": "player_ids.csv",
+    "contest_structure_path": "contest_structure.csv",
+    "use_double_te": false,
+    "global_team_limit": 4,
+    "projection_minimum": 5,
+    "randomness": 25,
+    "min_lineup_salary": 49200, 
+    "max_pct_off_optimal": 0.25,
+    "num_players_vs_def" : 0,
+    "pct_field_using_stacks" : 0.65, 
+    "pct_field_double_stacks": 0.4,
+    "default_qb_var" : 0.4, 
+    "default_skillpos_var" : 0.5, 
+    "default_def_var" : 0.5,
+    "allow_qb_vs_dst": false,
+    "at_most": {
+        "1": []
+    },
+    "at_least": {
+        "1": [
+        ]
+    },
+    "stack_rules": {
+        "pair": [
+            {
+                "key": "QB",
+                "positions": ["WR", "TE"],
+                "count": 2,
+                "type": "same-team",
+                "exclude_teams": []
+            },
+            {
+                "key": "QB",
+                "positions": ["WR", "TE", "RB"],
+                "count": 1,
+                "type": "opp-team",
+                "exclude_teams": []
+            }
+        ],
+        "limit": [
+            {
+                "positions": ["RB"],
+                "type": "same-team",
+                "count": 1,
+                "exclude_teams": []
+            },
+            {
+                "positions": ["WR", "TE"],
+                "type": "same-team",
+                "count": "1",
+                "exclude_teams": [],
+                "unless_positions": ["QB"],
+                "unless_type": "same-game"
+            }
+        ]
+    },
+    "matchup_limits": {},
+    "matchup_at_least": {},
+    "team_limits": {},
+    "custom_correlations" : {}
+    }
+}
