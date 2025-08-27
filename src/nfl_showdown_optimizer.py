@@ -8,35 +8,35 @@ import itertools
 
 
 class NFL_Showdown_Optimizer:
-    site = None
-    config = None
-    problem = None
-    output_dir = None
-    num_lineups = None
-    num_uniques = None
-    team_list = []
-    players_by_team = {}
-    lineups = []
-    player_dict = {}
-    at_least = {}
-    at_most = {}
-    team_limits = {}
-    matchup_limits = {}
-    matchup_at_least = {}
-    stack_rules = {}
-    global_team_limit = 5
-    use_double_te = True
-    projection_minimum = 0
-    randomness_amount = 0
-    default_qb_var = 0.4
-    default_skillpos_var = 0.5
-    default_def_var = 0.5
     team_rename_dict = {"LA": "LAR"}
 
     def __init__(self, site=None, num_lineups=0, num_uniques=1):
         self.site = site
+        self.config = None
+        self.problem = None
+        self.output_dir = None
         self.num_lineups = int(num_lineups)
         self.num_uniques = int(num_uniques)
+        # Instance-scoped containers to avoid leaking state between runs
+        self.team_list = []
+        self.players_by_team = {}
+        self.lineups = []
+        self.player_dict = {}
+        self.at_least = {}
+        self.at_most = {}
+        self.team_limits = {}
+        self.matchup_limits = {}
+        self.matchup_at_least = {}
+        self.stack_rules = {}
+        self.global_team_limit = 5
+        self.use_double_te = True
+        self.projection_minimum = 0
+        self.randomness_amount = 0
+        self.default_qb_var = 0.4
+        self.default_skillpos_var = 0.5
+        self.default_def_var = 0.5
+        self.min_lineup_salary = 0
+
         self.load_config()
         self.load_rules()
 
@@ -141,6 +141,7 @@ class NFL_Showdown_Optimizer:
         self.stack_rules = self.config["stack_rules"]
         self.matchup_at_least = self.config["matchup_at_least"]
         self.matchup_limits = self.config["matchup_limits"]
+        self.min_lineup_salary = int(self.config.get("min_lineup_salary", 0))
         self.default_qb_var = (
             self.config["default_qb_var"] if "default_qb_var" in self.config else 0.333
         )
@@ -314,7 +315,11 @@ class NFL_Showdown_Optimizer:
 
         # Set the salary constraints
         max_salary = 50000 if self.site == "dk" else 60000
-        min_salary = 44000 if self.site == "dk" else 54000
+        min_salary = (
+            self.min_lineup_salary
+            if self.min_lineup_salary
+            else (44000 if self.site == "dk" else 54000)
+        )
         self.problem += (
             plp.lpSum(
                 self.player_dict[(player, pos_str, team)]["Salary"]
