@@ -454,6 +454,11 @@ class NFL_Showdown_Simulator:
                         + ", fpts:"
                         + row["projections_proj"]
                     )
+                actpts = (
+                    float(row.get("projections_actpts", 0))
+                    if row.get("projections_actpts", "") not in ["", None]
+                    else 0
+                )
                 fieldFpts = fpts
                 if fpts == 0:
                     continue
@@ -602,6 +607,7 @@ class NFL_Showdown_Simulator:
                 pos_str = "FLEX"
                 player_data = {
                     "Fpts": fpts,
+                    "ActPts": actpts,
                     "fieldFpts": fieldFpts,
                     "Position": position,
                     "rosterPosition": "FLEX",
@@ -635,6 +641,7 @@ class NFL_Showdown_Simulator:
                     cpt_sal = sal
                 player_data = {
                     "Fpts": 1.5 * fpts,
+                    "ActPts": 1.5 * actpts,
                     "fieldFpts": 1.5 * fieldFpts,
                     "Position": position,
                     "rosterPosition": "CPT",
@@ -1467,6 +1474,7 @@ class NFL_Showdown_Simulator:
             salary = 0
             fpts_p = 0
             fieldFpts_p = 0
+            act_p = 0
             ceil_p = 0
             own_p = []
             own_s = []
@@ -1491,6 +1499,7 @@ class NFL_Showdown_Simulator:
                     salary += player_data.get("Salary", 0)
                     fpts_p += player_data.get("Fpts", 0)
                     fieldFpts_p += player_data.get("fieldFpts", 0)
+                    act_p += player_data.get("ActPts", 0)
                     ceil_p += player_data.get("Ceiling", 0)
                     own_p.append(player_data.get("Ownership", 0) / 100)
                     own_s.append(player_data.get("Ownership", 0))
@@ -1534,9 +1543,9 @@ class NFL_Showdown_Simulator:
                 roi_round = round(lineup_data["ROI"] / self.num_iterations, 2)
 
             if self.use_contest_data:
-                lineup_str = f"{lu_type},{','.join(lu_names)},{salary},{fpts_p},{fieldFpts_p},{ceil_p},{primary_stack},{secondary_stack},{players_vs_def},{win_p}%,{top10_p}%,{cash_p}%,{own_p},{own_s},{roi_p}%,${roi_round},{num_dupes}"
+                lineup_str = f"{lu_type},{','.join(lu_names)},{salary},{fpts_p},{fieldFpts_p},{act_p},{ceil_p},{primary_stack},{secondary_stack},{players_vs_def},{win_p}%,{top10_p}%,{cash_p}%,{own_p},{own_s},{roi_p}%,${roi_round},{num_dupes}"
             else:
-                lineup_str = f"{lu_type},{','.join(lu_names)},{salary},{fpts_p},{fieldFpts_p},{ceil_p},{primary_stack},{secondary_stack},{players_vs_def},{win_p}%,{top10_p}%,{cash_p}%,{own_p},{own_s},{num_dupes}"
+                lineup_str = f"{lu_type},{','.join(lu_names)},{salary},{fpts_p},{fieldFpts_p},{act_p},{ceil_p},{primary_stack},{secondary_stack},{players_vs_def},{win_p}%,{top10_p}%,{cash_p}%,{own_p},{own_s},{num_dupes}"
             unique[
                 lineup_str
             ] = fpts_p  # Changed data["Fpts"] to fpts_p, which contains the accumulated Fpts
@@ -1610,26 +1619,26 @@ class NFL_Showdown_Simulator:
         if self.site == "dk":
             if self.use_contest_data:
                 with open(lineups_path, "w") as f:
-                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,ROI%,ROI$,Num Dupes\n"
+                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,ROI%,ROI$,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
             else:
                 with open(lineups_path, "w") as f:
-                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,Num Dupes\n"
+                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
         else:
             if self.use_contest_data:
                 with open(lineups_path, "w") as f:
-                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,ROI,ROI/Entry Fee,Num Dupes\n"
+                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,ROI,ROI/Entry Fee,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
             else:
                 with open(lineups_path, "w") as f:
-                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,Num Dupes\n"
+                    header = "Type,CPT,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Primary Stack,Secondary Stack,Players vs DST,Win %,Top 10%,Cash %,Proj. Own. Product,Proj. Own. Sum,Num Dupes\n"
                     f.write(header)
                     for lineup_str, fpts in unique.items():
                         f.write(f"{lineup_str}\n")
