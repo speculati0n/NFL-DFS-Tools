@@ -1563,7 +1563,7 @@ class NFL_Showdown_Simulator:
         )
         with open(out_path, "w") as f:
             f.write(
-                "Player,Roster Position,Position,Team,Win%,Top10%,Sim. Own%,Proj. Own%,Avg. Return\n"
+                "Player,Roster Position,Position,Team,Fpts Act,Win%,Top10%,Sim. Own%,Proj. Own%,Avg. Return\n"
             )
             unique_players = {}
 
@@ -1598,9 +1598,10 @@ class NFL_Showdown_Simulator:
                 sd_position = player_info.get("rosterPosition", ["N/A"])
                 position = player_info.get("Position", ["N/A"])[0]
                 team = player_info.get("Team", "N/A")
+                act_pts = player_info.get("ActPts", 0)
 
                 f.write(
-                    f"{p_name},{sd_position},{position},{team},{win_p}%,{top10_p}%,{field_p}%,{proj_own}%,${roi_p}\n"
+                    f"{p_name},{sd_position},{position},{team},{act_pts},{win_p}%,{top10_p}%,{field_p}%,{proj_own}%,${roi_p}\n"
                 )
         return out_path
 

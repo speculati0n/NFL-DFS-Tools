@@ -2441,7 +2441,7 @@ class NFL_GPP_Simulator:
         )
         with open(exposure_path, "w") as f:
             f.write(
-                "Player,Position,Team,Win%,Top1%,Sim. Own%,Proj. Own%,Avg. Return\n"
+                "Player,Position,Team,Fpts Act,Win%,Top1%,Sim. Own%,Proj. Own%,Avg. Return\n"
             )
             unique_players = {}
             for val in self.field_lineups.values():
@@ -2476,12 +2476,14 @@ class NFL_GPP_Simulator:
                         p_name = v["Name"]
                         position = "/".join(v.get("Position"))
                         team = v.get("Team")
+                        act_pts = v.get("ActPts", 0)
                         break
                 f.write(
-                    "{},{},{},{}%,{}%,{}%,{}%,${}\n".format(
+                    "{},{},{},{},{}%,{}%,{}%,{}%,${}\n".format(
                         p_name.replace("#", "-"),
                         position,
                         team,
+                        act_pts,
                         win_p,
                         top10_p,
                         field_p,
