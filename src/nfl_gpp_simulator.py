@@ -774,6 +774,14 @@ class NFL_GPP_Simulator:
                     if opp == "JAX":
                         opp = "JAC"
 
+                # Build matchup identifiers that are consistent for both teams
+                if opp:
+                    matchup_teams = tuple(sorted([team, opp]))
+                    matchup = "@".join(matchup_teams)
+                else:
+                    matchup_teams = tuple()
+                    matchup = ""
+
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
@@ -785,7 +793,6 @@ class NFL_GPP_Simulator:
                     "Name": player_name,
                     "Team": team,
                     "Opp": opp,
-
                     "ID": "",
                     "Matchup": matchup,
                     "Salary": int(row["salary"].replace(",", "")),
@@ -797,20 +804,17 @@ class NFL_GPP_Simulator:
                     "In Lineup": False,
                 }
 
-
-                    player_data["ID"] = self.player_dict[
-                        (player_name, pos_str, team)
-                    ].get("ID", "")
+                # Retain existing info if player already present
+                key = (player_name, pos_str, team)
+                if key in self.player_dict:
+                    player_data["ID"] = self.player_dict[key].get("ID", "")
                     if not player_data.get("Matchup"):
-                        player_data["Matchup"] = self.player_dict[
-                            (player_name, pos_str, team)
-                        ].get("Matchup", matchup)
-                self.player_dict[(player_name, pos_str, team)] = player_data
-                self.teams_dict[team].append(
-                    player_data
-                )  # Add player data to their respective team
-                if matchup:
-                    self.matchups.add(matchup)
+                        player_data["Matchup"] = self.player_dict[key].get("Matchup", matchup)
+
+                self.player_dict[key] = player_data
+                self.teams_dict[team].append(player_data)  # Add player data to their respective team
+                if matchup_teams:
+                    self.matchups.add(matchup_teams)
 
     def load_team_stacks(self):
         # Initialize a dictionary to hold QB ownership by team
@@ -1778,7 +1782,7 @@ class NFL_GPP_Simulator:
         for _, player in self.player_dict.items():
             if player["ID"] == player_id:
                 matchup = player["Matchup"]
-                return self.game_info[matchup]
+                return self.game_info.get(matchup)
         return None
 
     def get_player_attribute(self, player_id, attribute):
@@ -1809,9 +1813,12 @@ class NFL_GPP_Simulator:
             current_player_start_time = self.get_start_time(current_player)
 
             # Update the latest start time and swap candidate index
-            if (current_player_start_time and current_player_start_time > latest_start_time and
-                self.is_valid_for_position(flex_player, i) and
-                self.is_valid_for_position(current_player, flex_index)):
+            if (
+                current_player_start_time
+                and (latest_start_time is None or current_player_start_time > latest_start_time)
+                and self.is_valid_for_position(flex_player, i)
+                and self.is_valid_for_position(current_player, flex_index)
+            ):
 
                 latest_start_time = current_player_start_time
                 swap_candidate_index = i
@@ -1941,8 +1948,10 @@ class NFL_GPP_Simulator:
 
         game = team1 + team2
         covariance_matrix, corr_matrix = build_covariance_matrix(game)
-        # print(team1_id, team2_id)
-        # print(corr_matrix)
+        # Ensure matrices are numpy arrays with at least 2 dimensions
+        covariance_matrix = np.array(covariance_matrix)
+        if covariance_matrix.ndim == 1:
+            covariance_matrix = covariance_matrix.reshape(1, 1)
         corr_matrix = np.array(corr_matrix)
 
         # Given eigenvalues and eigenvectors from previous code
@@ -2136,7 +2145,7 @@ class NFL_GPP_Simulator:
         # Split the simulation indices into chunks
         field_lineups_keys_array = np.array(list(self.field_lineups.keys()))
 
-        chunk_size = self.num_iterations // 16  # Adjust chunk size as needed
+        chunk_size = max(1, self.num_iterations // 16)  # Ensure non-zero chunk size
         simulation_chunks = [
             (
                 ranks[:, i : min(i + chunk_size, self.num_iterations)].copy(),
@@ -2240,37 +2249,29 @@ class NFL_GPP_Simulator:
             top10_p = round(x["Top1Percent"] / self.num_iterations * 100, 2)
             cash_p = round(x["Cashes"] / self.num_iterations * 100, 2)
             if self.site == "dk":
+                # Build player name/id pairs
+                player_parts = [
+                    f"{lu_names[i].replace('#', '-')} ({x['Lineup'][i]})" for i in range(1, 9)
+                ]
+                player_parts.append(
+                    f"{lu_names[0].replace('#', '-')} ({x['Lineup'][0]})"
+                )
+
                 if self.use_contest_data:
                     roi_p = round(
                         x["ROI"] / self.entry_fee / self.num_iterations * 100, 2
                     )
-                    roi_round = round(x["ROI"] / x['Count'] / self.num_iterations, 2)
-                    lineup_str = "{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{},{},{},${},{}%,{}%,{}%,{},${},{},{},{},{},{}".format(
-                        lu_names[1].replace("#", "-"),
-                        x["Lineup"][1],
-                        lu_names[2].replace("#", "-"),
-                        x["Lineup"][2],
-                        lu_names[3].replace("#", "-"),
-                        x["Lineup"][3],
-                        lu_names[4].replace("#", "-"),
-                        x["Lineup"][4],
-                        lu_names[5].replace("#", "-"),
-                        x["Lineup"][5],
-                        lu_names[6].replace("#", "-"),
-                        x["Lineup"][6],
-                        lu_names[7].replace("#", "-"),
-                        x["Lineup"][7],
-                        lu_names[8].replace("#", "-"),
-                        x["Lineup"][8],
-                        lu_names[0].replace("#", "-"),
-                        x["Lineup"][0],
+                    roi_round = round(
+                        x["ROI"] / x["Count"] / self.num_iterations, 2
+                    )
+                    extra_parts = [
                         fpts_p,
                         fieldFpts_p,
                         ceil_p,
                         salary,
-                        win_p,
-                        top10_p,
-                        roi_p,
+                        f"{win_p}%",
+                        f"{top10_p}%",
+                        f"{roi_p}%",
                         own_p,
                         roi_round,
                         primaryStack,
@@ -2278,40 +2279,23 @@ class NFL_GPP_Simulator:
                         players_vs_def,
                         lu_type,
                         simDupes,
-                    )
+                    ]
                 else:
-                    lineup_str = "{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{},{},{},{},{}%,{}%,{}%,{},{},{},{},{}".format(
-                        lu_names[1].replace("#", "-"),
-                        x["Lineup"][1],
-                        lu_names[2].replace("#", "-"),
-                        x["Lineup"][2],
-                        lu_names[3].replace("#", "-"),
-                        x["Lineup"][3],
-                        lu_names[4].replace("#", "-"),
-                        x["Lineup"][4],
-                        lu_names[5].replace("#", "-"),
-                        x["Lineup"][5],
-                        lu_names[6].replace("#", "-"),
-                        x["Lineup"][6],
-                        lu_names[7].replace("#", "-"),
-                        x["Lineup"][7],
-                        lu_names[8].replace("#", "-"),
-                        x["Lineup"][8],
-                        lu_names[0].replace("#", "-"),
-                        x["Lineup"][0],
+                    extra_parts = [
                         fpts_p,
                         fieldFpts_p,
                         ceil_p,
                         salary,
-                        win_p,
-                        top10_p,
-                        own_p,
+                        f"{win_p}%",
+                        f"{top10_p}%",
+                        f"{own_p}%",
                         primaryStack,
                         secondaryStack,
                         players_vs_def,
                         lu_type,
-                        simDupes
-                    )
+                        simDupes,
+                    ]
+                lineup_str = ",".join(map(str, player_parts + extra_parts))
             elif self.site == "fd":
                 if self.use_contest_data:
                     roi_p = round(
