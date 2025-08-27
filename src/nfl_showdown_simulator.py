@@ -870,9 +870,10 @@ class NFL_Showdown_Simulator:
         while True:
             iteration_count += 1
             if iteration_count > max_iterations:
-                raise RuntimeError(
+                print(
                     f"Failed to generate lineup after {max_iterations} iterations"
                 )
+                return {}
             salary, proj = 0, 0
             lineup, player_teams, lineup_matchups = [], [], []
             def_opp, players_opposing_def, cpt_selected = None, 0, False
@@ -1004,12 +1005,17 @@ class NFL_Showdown_Simulator:
 
         print("pool closed")
 
+        valid_output = [o for o in output if o]
+        failed = len(output) - len(valid_output)
+        if failed:
+            print(f"{failed} lineups failed to generate and were skipped")
+
         # Update field lineups
-        self.update_field_lineups(output, diff)
+        self.update_field_lineups(valid_output, len(valid_output))
 
         end_time = time.time()
         print(f"lineups took {end_time - start_time} seconds")
-        print(f"{diff} field lineups successfully generated")
+        print(f"{len(valid_output)} field lineups successfully generated")
 
     def extract_player_data(self):
         ids, ownership, salaries, projections, teams, opponents, matchups, positions = (

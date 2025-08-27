@@ -994,9 +994,10 @@ class NFL_GPP_Simulator:
         while reject:
             iteration_count += 1
             if iteration_count > max_iterations:
-                raise RuntimeError(
+                print(
                     f"Failed to generate lineup after {max_iterations} iterations"
                 )
+                return {}
             if team_stack == "":
                 salary = 0
                 proj = 0
@@ -1756,10 +1757,14 @@ class NFL_GPP_Simulator:
                 pool.close()
                 pool.join()
             print("pool closed")
-            self.update_field_lineups(output,diff)
+            valid_output = [o for o in output if o]
+            failed = len(output) - len(valid_output)
+            if failed:
+                print(f"{failed} lineups failed to generate and were skipped")
+            self.update_field_lineups(valid_output, len(valid_output))
             end_time = time.time()
             print("lineups took " + str(end_time - start_time) + " seconds")
-            print(str(diff) + " field lineups successfully generated")
+            print(str(len(valid_output)) + " field lineups successfully generated")
             # print("Reject counters:", dict(overall_reject_counters))
 
             # print(self.field_lineups)
