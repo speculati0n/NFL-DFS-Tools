@@ -507,6 +507,7 @@ class NFL_GPP_Simulator:
                             key = (player_name, pos_str, team)
                             if key in self.player_dict:
                                 self.player_dict[key]["ID"] = str(row["draftableid"])
+
                                 matched = True
                                 break
                         else:
@@ -514,6 +515,7 @@ class NFL_GPP_Simulator:
                                 pname, ppos, pteam = key
                                 if pname == player_name and ppos == pos_str:
                                     self.player_dict[key]["ID"] = str(row["draftableid"])
+
                                     matched = True
                                     break
                         if matched:
@@ -541,6 +543,7 @@ class NFL_GPP_Simulator:
                         key = (player_name, pos_str, team)
                         if key in self.player_dict:
                             self.player_dict[key]["ID"] = str(row.get("id", ""))
+
                             break
                     self.id_name_dict[str(row.get("id", ""))] = row.get("nickname") or row.get("displayname", "")
 
@@ -764,8 +767,6 @@ class NFL_GPP_Simulator:
 
                 if team == "LA":
                     team = "LAR"
-                if opp == "LA":
-                    opp = "LAR"
 
                 if self.site == "fd":
                     if team == "JAX":
@@ -773,7 +774,6 @@ class NFL_GPP_Simulator:
                     if opp == "JAX":
                         opp = "JAC"
 
-                matchup = tuple(sorted([team, opp])) if opp else ()
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
@@ -785,6 +785,7 @@ class NFL_GPP_Simulator:
                     "Name": player_name,
                     "Team": team,
                     "Opp": opp,
+
                     "ID": "",
                     "Matchup": matchup,
                     "Salary": int(row["salary"].replace(",", "")),
@@ -796,12 +797,14 @@ class NFL_GPP_Simulator:
                     "In Lineup": False,
                 }
 
-                # Preserve any existing player ID if present
-                if (player_name, pos_str, team) in self.player_dict:
+
                     player_data["ID"] = self.player_dict[
                         (player_name, pos_str, team)
                     ].get("ID", "")
-
+                    if not player_data.get("Matchup"):
+                        player_data["Matchup"] = self.player_dict[
+                            (player_name, pos_str, team)
+                        ].get("Matchup", matchup)
                 self.player_dict[(player_name, pos_str, team)] = player_data
                 self.teams_dict[team].append(
                     player_data
