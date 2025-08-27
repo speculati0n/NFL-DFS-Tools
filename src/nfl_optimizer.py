@@ -84,7 +84,7 @@ class NFL_Optimizer:
             for row in reader:
                 if self.site == "dk":
                     position = row["position"]
-                    team = row["shortname"]
+                    team = row.get("team") or row.get("teamabbrev")
                     names = set()
                     for col in ["displayname", "firstname", "lastname", "shortname"]:
                         val = row.get(col)
@@ -92,13 +92,27 @@ class NFL_Optimizer:
                             names.add(val)
                     if row.get("firstname") and row.get("lastname"):
                         names.add(f"{row['firstname']} {row['lastname']}")
+                    matched = False
                     for name in names:
                         player_name = name.replace("-", "#").lower().strip()
-                        key = (player_name, position, team)
-                        if key in self.player_dict:
-                            self.player_dict[key]["ID"] = int(row["draftableid"])
-                            if not self.player_dict[key].get("Matchup"):
-                                self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                        if team:
+                            key = (player_name, position, team)
+                            if key in self.player_dict:
+                                self.player_dict[key]["ID"] = int(row["draftableid"])
+                                if not self.player_dict[key].get("Matchup"):
+                                    self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                                matched = True
+                                break
+                        else:
+                            for key in list(self.player_dict.keys()):
+                                pname, ppos, pteam = key
+                                if pname == player_name and ppos == position:
+                                    self.player_dict[key]["ID"] = int(row["draftableid"])
+                                    if not self.player_dict[key].get("Matchup"):
+                                        self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                                    matched = True
+                                    break
+                        if matched:
                             break
                 else:
                     position = row["position"]
