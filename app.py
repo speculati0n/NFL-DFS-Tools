@@ -1,4 +1,5 @@
 import os
+import shutil
 import pandas as pd
 from flask import Flask, render_template, request, redirect
 from src.nfl_optimizer import NFL_Optimizer
@@ -8,6 +9,7 @@ from src.nfl_showdown_simulator import NFL_Showdown_Simulator
 
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 
 @app.route('/')
 def index():
@@ -16,7 +18,7 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     site = request.form['site'].strip().lower()
-    data_dir = os.path.join(BASE_DIR, f"{site}_data")
+    data_dir = os.path.join(UPLOAD_DIR, site)
     os.makedirs(data_dir, exist_ok=True)
     projections = request.files.get('projections')
     players = request.files.get('players')
@@ -29,7 +31,8 @@ def upload():
     if contest and contest.filename:
         contest.save(os.path.join(data_dir, 'contest_structure.csv'))
     if config and config.filename:
-        config.save(os.path.join(BASE_DIR, 'config.json'))
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        config.save(os.path.join(UPLOAD_DIR, 'config.json'))
     return redirect('/')
 
 @app.route('/optimize', methods=['POST'])
@@ -74,6 +77,16 @@ def simulate():
         ("Exposure", exposure_df.to_html(index=False)),
     ]
     return render_template('results.html', title='Simulation Results', tables=tables)
+
+
+@app.route('/reset', methods=['POST'])
+def reset():
+    site = request.form['site'].strip().lower()
+    shutil.rmtree(os.path.join(UPLOAD_DIR, site), ignore_errors=True)
+    config_path = os.path.join(UPLOAD_DIR, 'config.json')
+    if os.path.exists(config_path):
+        os.remove(config_path)
+    return redirect('/')
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -11,6 +11,8 @@ import itertools
 from random import shuffle, choice
 from collections import Counter
 
+from utils import get_data_path, get_config_path
+
 
 class NFL_Optimizer:
     team_rename_dict = {"LA": "LAR"}
@@ -50,16 +52,10 @@ class NFL_Optimizer:
 
         self.problem = plp.LpProblem("NFL", plp.LpMaximize)
 
-        projection_path = os.path.join(
-            os.path.dirname(__file__),
-            "../{}_data/{}".format(site, self.config["projection_path"]),
-        )
+        projection_path = get_data_path(site, self.config["projection_path"])
         self.load_projections(projection_path)
 
-        player_path = os.path.join(
-            os.path.dirname(__file__),
-            "../{}_data/{}".format(site, self.config["player_path"]),
-        )
+        player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
         self.assertPlayerDict()
 
@@ -72,10 +68,7 @@ class NFL_Optimizer:
 
     # Load config from file
     def load_config(self):
-        base_path = os.path.join(os.path.dirname(__file__), "..")
-        config_path = os.path.join(base_path, "config.json")
-        if not os.path.exists(config_path):
-            config_path = os.path.join(base_path, "sample.config.json")
+        config_path = get_config_path()
         with open(config_path) as json_file:
             self.config = json.load(json_file)
 
