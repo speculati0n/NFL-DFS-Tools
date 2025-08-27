@@ -455,11 +455,12 @@ class NFL_GPP_Simulator:
                     )
                 if s["ID"] is None:
                     print(s["Name"])
-        score = str(problem.objective)
-        for v in problem.variables():
-            score = score.replace(v.name, str(v.varValue))
-
-        self.optimal_score = eval(score)
+        # Directly evaluate the objective using PuLP's value helper instead of
+        # constructing a string and using ``eval``.  The previous approach would
+        # fail when any variable had a ``None`` value, causing a ``TypeError``
+        # during evaluation.  ``plp.value`` safely computes the objective value
+        # from the solved problem.
+        self.optimal_score = float(plp.value(problem.objective))
 
     @staticmethod
     def extract_matchup_time(game_string):
