@@ -154,6 +154,12 @@ class NFL_Optimizer:
                     s["Name"]
                     + " name mismatch between projections and player ids, excluding from player_dict"
                 )
+                player, pos, team = p
+                if team in self.players_by_team and pos in self.players_by_team[team]:
+                    try:
+                        self.players_by_team[team][pos].remove(s)
+                    except ValueError:
+                        pass
                 self.player_dict.pop(p)
 
     # Load projections from file
