@@ -491,7 +491,7 @@ class NFL_GPP_Simulator:
                     position.sort()
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
-                    team = row["shortname"]
+                    team = row.get("team") or row.get("teamabbrev")
                     pos_str = str(position)
                     names = set()
                     for col in ["displayname", "firstname", "lastname", "shortname"]:
@@ -500,14 +500,29 @@ class NFL_GPP_Simulator:
                             names.add(val)
                     if row.get("firstname") and row.get("lastname"):
                         names.add(f"{row['firstname']} {row['lastname']}")
+                    matched = False
                     for name in names:
                         player_name = name.replace("-", "#").lower().strip()
-                        key = (player_name, pos_str, team)
-                        if key in self.player_dict:
-                            self.player_dict[key]["ID"] = str(row["draftableid"])
-                            self.player_dict[key]["Team"] = team
-                            self.player_dict[key]["Opp"] = ""
-                            self.player_dict[key]["Matchup"] = ()
+                        if team:
+                            key = (player_name, pos_str, team)
+                            if key in self.player_dict:
+                                self.player_dict[key]["ID"] = str(row["draftableid"])
+                                self.player_dict[key]["Team"] = team
+                                self.player_dict[key]["Opp"] = ""
+                                self.player_dict[key]["Matchup"] = ()
+                                matched = True
+                                break
+                        else:
+                            for key in list(self.player_dict.keys()):
+                                pname, ppos, pteam = key
+                                if pname == player_name and ppos == pos_str:
+                                    self.player_dict[key]["ID"] = str(row["draftableid"])
+                                    self.player_dict[key]["Team"] = pteam
+                                    self.player_dict[key]["Opp"] = ""
+                                    self.player_dict[key]["Matchup"] = ()
+                                    matched = True
+                                    break
+                        if matched:
                             break
                     self.id_name_dict[str(row["draftableid"])] = row.get("displayname", "")
                 else:
