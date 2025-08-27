@@ -514,7 +514,7 @@ class NFL_GPP_Simulator:
                     position.sort()
                     if "D" in position:
                         position = ["DST"]
-                        player_name = row["last name"].replace("-", "#").lower().strip()
+
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
                     team = row["team"]
@@ -527,26 +527,6 @@ class NFL_GPP_Simulator:
                         self.player_dict[key]["Matchup"] = ()
                     self.id_name_dict[str(row["id"])] = row[name_key]
 
-    def load_contest_data(self, path):
-        with open(path, encoding="utf-8-sig") as file:
-            reader = csv.DictReader(self.lower_first(file))
-            for row in reader:
-                if self.field_size is None:
-                    self.field_size = int(row["field size"])
-                if self.entry_fee is None:
-                    self.entry_fee = float(row["entry fee"])
-                # multi-position payouts
-                if "-" in row["place"]:
-                    indices = row["place"].split("-")
-                    for i in range(int(indices[0]), int(indices[1]) + 1):
-                        if i >= self.field_size:
-                            break
-                        self.payout_structure[i - 1] = float(
-                            row["payout"].split(".")[0].replace(",", "")
-                        )
-                # single-position payouts
-                else:
-                    if int(row["place"]) >= self.field_size:
                         break
                     self.payout_structure[int(row["place"]) - 1] = float(
                         row["payout"].split(".")[0].replace(",", "")
