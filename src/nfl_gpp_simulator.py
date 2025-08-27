@@ -527,11 +527,51 @@ class NFL_GPP_Simulator:
                         self.player_dict[key]["Matchup"] = ()
                     self.id_name_dict[str(row["id"])] = row[name_key]
 
-                        break
-                    self.payout_structure[int(row["place"]) - 1] = float(
-                        row["payout"].split(".")[0].replace(",", "")
-                    )
-        # print(self.payout_structure)
+    def load_contest_data(self, path):
+        """Load contest metadata including payout structure.
+
+        The contest structure CSV is expected to contain at least
+        ``place`` and ``payout`` columns.  Additional rows may include
+        metadata such as ``entries`` (field size) and ``entry_fee``.
+        This function is resilient to slight format variations and
+        ignores any lines that do not match the expected format.
+        """
+
+        with open(path, encoding="utf-8-sig") as file:
+            reader = csv.DictReader(self.lower_first(file))
+            for row in reader:
+                place = row.get("place", "").strip().lower()
+                payout = row.get("payout", "").strip()
+
+                if place in {"entries", "field size"}:
+                    try:
+                        self.field_size = int(payout.replace(",", ""))
+                    except ValueError:
+                        pass
+                    continue
+
+                if place in {"entry fee", "entry_fee"}:
+                    try:
+                        self.entry_fee = float(
+                            payout.replace("$", "").replace(",", "")
+                        )
+                    except ValueError:
+                        pass
+                    continue
+
+                # Standard payout rows – ``place`` should be an integer
+                try:
+                    place_idx = int(place) - 1
+                    prize = float(payout.split(".")[0].replace(",", ""))
+                except ValueError:
+                    # Skip rows that don't conform to expected format
+                    continue
+
+                self.payout_structure[place_idx] = prize
+
+        # If field size wasn't provided, infer it from the payout structure
+        if self.field_size is None:
+            self.field_size = len(self.payout_structure)
 
     def load_correlation_rules(self):
         if len(self.correlation_rules.keys()) > 0:
