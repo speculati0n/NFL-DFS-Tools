@@ -997,7 +997,9 @@ class NFL_GPP_Simulator:
                 print(
                     f"Failed to generate lineup after {max_iterations} iterations"
                 )
-                return {}
+                # Returning ``None`` allows the caller to skip this lineup
+                # without the entire simulation aborting due to an exception.
+                return None
             if team_stack == "":
                 salary = 0
                 proj = 0
@@ -1757,7 +1759,7 @@ class NFL_GPP_Simulator:
                 pool.close()
                 pool.join()
             print("pool closed")
-            valid_output = [o for o in output if o]
+            valid_output = [o for o in output if o is not None]
             failed = len(output) - len(valid_output)
             if failed:
                 print(f"{failed} lineups failed to generate and were skipped")
