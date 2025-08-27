@@ -309,63 +309,31 @@ class NFL_Showdown_Simulator:
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
-                name_key = "name" if self.site == "dk" else "nickname"
-                if self.site == "fd" and row["position"] == "D":
-                    name_key = "last name"
-                player_name = row[name_key].replace("-", "#").lower().strip()
-                # if qb and dst not in position add flex
-                team_key = "teamabbrev" if self.site == "dk" else "team"
-                team = row[team_key]
-                game_info = "game info" if self.site == "dk" else "game"
-                match = re.search(pattern="(\w{2,4}@\w{2,4})", string=row[game_info])
-                if match:
-                    opp = match.groups()[0].split("@")
-                    self.matchups.add((opp[0], opp[1]))
-                    for m in opp:
-                        if m != team:
-                            team_opp = m
-                    opp = tuple(opp)
-                # if not opp:
-                #    print(row)
                 if self.site == "dk":
-                    position_key = "roster position"
-                    position = row[position_key]
-                    pos_str = str(position)
-                    if (player_name, pos_str, team) in self.player_dict:
-                        self.player_dict[(player_name, pos_str, team)]["ID"] = str(
-                            row["id"]
-                        )
-                        self.player_dict[(player_name, pos_str, team)]["Team"] = row[
-                            team_key
-                        ]
-                        self.player_dict[(player_name, pos_str, team)]["Opp"] = team_opp
-                        self.player_dict[(player_name, pos_str, team)]["Matchup"] = opp
-                        self.player_dict[(player_name, pos_str, team)][
-                            "UniqueKey"
-                        ] = str(row["id"])
-                elif self.site == "fd":
+                    player_name = row["displayname"].replace("-", "#").lower().strip()
+                    team = row["shortname"]
+                    position = row["position"]
+                    if (player_name, position, team) in self.player_dict:
+                        self.player_dict[(player_name, position, team)]["ID"] = str(row["draftableid"])
+                        self.player_dict[(player_name, position, team)]["Team"] = team
+                        self.player_dict[(player_name, position, team)]["Opp"] = ""
+                        self.player_dict[(player_name, position, team)]["Matchup"] = ""
+                        self.player_dict[(player_name, position, team)]["UniqueKey"] = str(row["draftableid"])
+                    self.id_name_dict[str(row["draftableid"])] = row["displayname"]
+                else:
+                    name_key = "nickname"
+                    if row["position"] == "D":
+                        name_key = "last name"
+                    player_name = row[name_key].replace("-", "#").lower().strip()
+                    team = row["team"]
                     for position in ["CPT", "FLEX"]:
                         if (player_name, position, team) in self.player_dict:
-                            if position == "CPT":
-                                self.player_dict[(player_name, position, team)][
-                                    "UniqueKey"
-                                ] = f'CPT:{row["id"]}'
-                            else:
-                                self.player_dict[(player_name, position, team)][
-                                    "UniqueKey"
-                                ] = f'FLEX:{row["id"]}'
-                            self.player_dict[(player_name, position, team)]["ID"] = row[
-                                "id"
-                            ]
-                            self.player_dict[(player_name, position, team)][
-                                "Team"
-                            ] = row[team_key]
-                            self.player_dict[(player_name, position, team)][
-                                "Opp"
-                            ] = team_opp
-                            self.player_dict[(player_name, position, team)][
-                                "Matchup"
-                            ] = opp
+                            key = f'{position}:{row["id"]}'
+                            self.player_dict[(player_name, position, team)]["UniqueKey"] = key
+                            self.player_dict[(player_name, position, team)]["ID"] = row["id"]
+                            self.player_dict[(player_name, position, team)]["Team"] = team
+                            self.player_dict[(player_name, position, team)]["Opp"] = ""
+                            self.player_dict[(player_name, position, team)]["Matchup"] = ""
                     self.id_name_dict[str(row["id"])] = row[name_key]
 
     def load_correlation_rules(self):
@@ -457,10 +425,11 @@ class NFL_Showdown_Simulator:
 
     # Load config from file
     def load_config(self):
-        with open(
-            os.path.join(os.path.dirname(__file__), "../config.json"),
-            encoding="utf-8-sig",
-        ) as json_file:
+        base_path = os.path.join(os.path.dirname(__file__), "..")
+        config_path = os.path.join(base_path, "config.json")
+        if not os.path.exists(config_path):
+            config_path = os.path.join(base_path, "sample.config.json")
+        with open(config_path, encoding="utf-8-sig") as json_file:
             self.config = json.load(json_file)
 
     # Load projections from file
@@ -471,33 +440,27 @@ class NFL_Showdown_Simulator:
             for row in reader:
                 player_name = row["name"].replace("-", "#").lower().strip()
                 try:
-                    fpts = float(row["fpts"])
+                    fpts = float(row["projections_proj"])
                 except:
                     fpts = 0
                     print(
                         "unable to load player fpts: "
                         + player_name
                         + ", fpts:"
-                        + row["fpts"]
+                        + row["projections_proj"]
                     )
-                if "fieldfpts" in row:
-                    if row["fieldfpts"] == "":
-                        fieldFpts = fpts
-                    else:
-                        fieldFpts = float(row["fieldfpts"])
-                else:
-                    fieldFpts = fpts
+                fieldFpts = fpts
                 if fpts == 0:
                     continue
-                position = [pos for pos in row["position"].split("/")]
+                position = [pos for pos in row["pos"].split("/")]
                 position.sort()
                 # if qb and dst not in position add flex
                 if self.site == "fd":
                     if "D" in position:
                         position = ["DST"]
                 pos = position[0]
-                if "stddev" in row:
-                    if row["stddev"] == "" or float(row["stddev"]) == 0:
+                if "fantasyyear_consistency" in row:
+                    if row["fantasyyear_consistency"] == "" or float(row["fantasyyear_consistency"]) == 0:
                         if position == "QB":
                             stddev = fpts * self.default_qb_var
                         elif position == "DST":
@@ -505,7 +468,7 @@ class NFL_Showdown_Simulator:
                         else:
                             stddev = fpts * self.default_skillpos_var
                     else:
-                        stddev = float(row["stddev"])
+                        stddev = float(row["fantasyyear_consistency"])
                 else:
                     if position == "QB":
                         stddev = fpts * self.default_qb_var
@@ -621,7 +584,7 @@ class NFL_Showdown_Simulator:
                         team = "JAC"
                 if team not in self.team_list:
                     self.team_list.append(team)
-                own = float(row["own%"].replace("%", ""))
+                own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
                 if "cptown%" in row:
