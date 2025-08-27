@@ -514,7 +514,7 @@ class NFL_GPP_Simulator:
                     position.sort()
                     if "D" in position:
                         position = ["DST"]
-                        player_name = row['last name'].replace("-", "#").lower().strip()
+
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
                     team = row["team"]
@@ -526,6 +526,7 @@ class NFL_GPP_Simulator:
                         self.player_dict[key]["Opp"] = ""
                         self.player_dict[key]["Matchup"] = ()
                     self.id_name_dict[str(row["id"])] = row[name_key]
+
                         break
                     self.payout_structure[int(row["place"]) - 1] = float(
                         row["payout"].split(".")[0].replace(",", "")
