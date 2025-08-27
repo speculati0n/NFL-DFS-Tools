@@ -310,31 +310,47 @@ class NFL_Showdown_Simulator:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
                 if self.site == "dk":
-                    player_name = row["displayname"].replace("-", "#").lower().strip()
                     team = row["shortname"]
                     position = row["position"]
-                    if (player_name, position, team) in self.player_dict:
-                        self.player_dict[(player_name, position, team)]["ID"] = str(row["draftableid"])
-                        self.player_dict[(player_name, position, team)]["Team"] = team
-                        self.player_dict[(player_name, position, team)]["Opp"] = ""
-                        self.player_dict[(player_name, position, team)]["Matchup"] = ""
-                        self.player_dict[(player_name, position, team)]["UniqueKey"] = str(row["draftableid"])
-                    self.id_name_dict[str(row["draftableid"])] = row["displayname"]
-                else:
-                    name_key = "nickname"
-                    if row["position"] == "D":
-                        name_key = "last name"
-                    player_name = row[name_key].replace("-", "#").lower().strip()
-                    team = row["team"]
-                    for position in ["CPT", "FLEX"]:
+                    names = set()
+                    for col in ["displayname", "firstname", "lastname", "shortname"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    for name in names:
+                        player_name = name.replace("-", "#").lower().strip()
                         if (player_name, position, team) in self.player_dict:
-                            key = f'{position}:{row["id"]}'
-                            self.player_dict[(player_name, position, team)]["UniqueKey"] = key
-                            self.player_dict[(player_name, position, team)]["ID"] = row["id"]
+                            self.player_dict[(player_name, position, team)]["ID"] = str(row["draftableid"])
                             self.player_dict[(player_name, position, team)]["Team"] = team
                             self.player_dict[(player_name, position, team)]["Opp"] = ""
                             self.player_dict[(player_name, position, team)]["Matchup"] = ""
-                    self.id_name_dict[str(row["id"])] = row[name_key]
+                            self.player_dict[(player_name, position, team)]["UniqueKey"] = str(row["draftableid"])
+                            break
+                    self.id_name_dict[str(row["draftableid"])] = row.get("displayname", "")
+                else:
+                    team = row["team"]
+                    names = set()
+                    for col in ["nickname", "displayname", "firstname", "lastname", "shortname", "last name"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    if row.get("first name") and row.get("last name"):
+                        names.add(f"{row['first name']} {row['last name']}")
+                    for position in ["CPT", "FLEX"]:
+                        for name in names:
+                            player_name = name.replace("-", "#").lower().strip()
+                            if (player_name, position, team) in self.player_dict:
+                                key = f"{position}:{row.get('id', '')}"
+                                self.player_dict[(player_name, position, team)]["UniqueKey"] = key
+                                self.player_dict[(player_name, position, team)]["ID"] = row.get("id", "")
+                                self.player_dict[(player_name, position, team)]["Team"] = team
+                                self.player_dict[(player_name, position, team)]["Opp"] = ""
+                                self.player_dict[(player_name, position, team)]["Matchup"] = ""
+                    self.id_name_dict[str(row.get("id", ""))] = row.get("nickname") or row.get("displayname", "")
 
     def load_correlation_rules(self):
         if len(self.correlation_rules.keys()) > 0:

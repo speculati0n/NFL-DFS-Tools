@@ -493,23 +493,30 @@ class NFL_GPP_Simulator:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
                 if self.site == "dk":
-                    player_name = row["displayname"].replace("-", "#").lower().strip()
                     position = [pos for pos in row["position"].split("/")]
                     position.sort()
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
                     team = row["shortname"]
                     pos_str = str(position)
-                    key = (player_name, pos_str, team)
-                    if key in self.player_dict:
-                        self.player_dict[key]["ID"] = str(row["draftableid"])
-                        self.player_dict[key]["Team"] = team
-                        self.player_dict[key]["Opp"] = ""
-                        self.player_dict[key]["Matchup"] = ()
-                    self.id_name_dict[str(row["draftableid"])] = row["displayname"]
+                    names = set()
+                    for col in ["displayname", "firstname", "lastname", "shortname"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    for name in names:
+                        player_name = name.replace("-", "#").lower().strip()
+                        key = (player_name, pos_str, team)
+                        if key in self.player_dict:
+                            self.player_dict[key]["ID"] = str(row["draftableid"])
+                            self.player_dict[key]["Team"] = team
+                            self.player_dict[key]["Opp"] = ""
+                            self.player_dict[key]["Matchup"] = ()
+                            break
+                    self.id_name_dict[str(row["draftableid"])] = row.get("displayname", "")
                 else:
-                    name_key = "nickname"
-                    player_name = row[name_key].replace("-", "#").lower().strip()
                     position = [pos for pos in row["position"].split("/")]
                     position.sort()
                     if "D" in position:
@@ -519,13 +526,23 @@ class NFL_GPP_Simulator:
                         position.append("FLEX")
                     team = row["team"]
                     pos_str = str(position)
-                    key = (player_name, pos_str, team)
-                    if key in self.player_dict:
-                        self.player_dict[key]["ID"] = str(row["id"])
-                        self.player_dict[key]["Team"] = team
-                        self.player_dict[key]["Opp"] = ""
-                        self.player_dict[key]["Matchup"] = ()
-                    self.id_name_dict[str(row["id"])] = row[name_key]
+                    names = set()
+                    for col in ["nickname", "displayname", "firstname", "lastname", "shortname"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    for name in names:
+                        player_name = name.replace("-", "#").lower().strip()
+                        key = (player_name, pos_str, team)
+                        if key in self.player_dict:
+                            self.player_dict[key]["ID"] = str(row.get("id", ""))
+                            self.player_dict[key]["Team"] = team
+                            self.player_dict[key]["Opp"] = ""
+                            self.player_dict[key]["Matchup"] = ()
+                            break
+                    self.id_name_dict[str(row.get("id", ""))] = row.get("nickname") or row.get("displayname", "")
 
     def load_contest_data(self, path):
         """Load contest metadata including payout structure.
