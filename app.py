@@ -22,9 +22,9 @@ def upload():
     players = request.files.get('players')
     contest = request.files.get('contest')
     config = request.files.get('config')
-    if projections:
+    if projections and projections.filename:
         projections.save(os.path.join(data_dir, 'projections.csv'))
-    if players:
+    if players and players.filename:
         players.save(os.path.join(data_dir, 'player_ids.csv'))
     if contest and contest.filename:
         contest.save(os.path.join(data_dir, 'contest_structure.csv'))
