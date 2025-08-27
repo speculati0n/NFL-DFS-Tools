@@ -1,0 +1,3 @@
+# Uploaded data - keep directory but ignore files
+*
+!.gitignore
