@@ -2,6 +2,7 @@ import sys, os
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
+
 from nfl_gpp_simulator import NFL_GPP_Simulator
 
 
@@ -24,3 +25,4 @@ def test_lamar_jackson_gets_id_without_mismatch(monkeypatch, capsys):
     key = ("lamar jackson", str(["QB"]), "BAL")
     assert key in sim.player_dict
     assert sim.player_dict[key]["ID"] not in ("", None, 0)
+

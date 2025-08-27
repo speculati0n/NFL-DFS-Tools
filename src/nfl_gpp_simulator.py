@@ -95,6 +95,7 @@ class NFL_GPP_Simulator:
 
         player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
+        self.assertPlayerDict()
         self.load_team_stacks()
 
         # ownership_path = os.path.join(
@@ -154,7 +155,6 @@ class NFL_GPP_Simulator:
             self.entry_fee = 0
 
         # self.adjust_default_stdev()
-        self.assertPlayerDict()
         self.num_iterations = int(num_iterations)
         self.get_optimal()
         if self.use_lineup_input:
