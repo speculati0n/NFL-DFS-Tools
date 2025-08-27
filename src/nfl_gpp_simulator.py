@@ -21,6 +21,8 @@ from collections import Counter
 from numba import jit
 import datetime
 
+from utils import get_data_path, get_config_path
+
 @jit(nopython=True)
 def salary_boost(salary, max_salary):
     return (salary / max_salary) ** 2
@@ -87,16 +89,10 @@ class NFL_GPP_Simulator:
         self.load_config()
         self.load_rules()
 
-        projection_path = os.path.join(
-            os.path.dirname(__file__),
-            "../{}_data/{}".format(site, self.config["projection_path"]),
-        )
+        projection_path = get_data_path(site, self.config["projection_path"])
         self.load_projections(projection_path)
 
-        player_path = os.path.join(
-            os.path.dirname(__file__),
-            "../{}_data/{}".format(site, self.config["player_path"]),
-        )
+        player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
         self.load_team_stacks()
 
@@ -148,10 +144,7 @@ class NFL_GPP_Simulator:
 
         self.use_contest_data = use_contest_data
         if use_contest_data:
-            contest_path = os.path.join(
-                os.path.dirname(__file__),
-                "../{}_data/{}".format(site, self.config["contest_structure_path"]),
-            )
+            contest_path = get_data_path(site, self.config["contest_structure_path"])
             self.load_contest_data(contest_path)
             print("Contest payout structure loaded.")
         else:
@@ -636,10 +629,7 @@ class NFL_GPP_Simulator:
 
     # Load config from file
     def load_config(self):
-        base_path = os.path.join(os.path.dirname(__file__), "..")
-        config_path = os.path.join(base_path, "config.json")
-        if not os.path.exists(config_path):
-            config_path = os.path.join(base_path, "sample.config.json")
+        config_path = get_config_path()
         with open(config_path, encoding="utf-8-sig") as json_file:
             self.config = json.load(json_file)
 
