@@ -70,46 +70,40 @@ class NFL_Optimizer:
 
     # Load config from file
     def load_config(self):
-        with open(
-            os.path.join(os.path.dirname(__file__), "../config.json")
-        ) as json_file:
+        base_path = os.path.join(os.path.dirname(__file__), "..")
+        config_path = os.path.join(base_path, "config.json")
+        if not os.path.exists(config_path):
+            config_path = os.path.join(base_path, "sample.config.json")
+        with open(config_path) as json_file:
             self.config = json.load(json_file)
 
     # Load player IDs for exporting
     def load_player_ids(self, path):
-        with open(path) as file:
+        with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
-                name_key = "name" if self.site == "dk" else "nickname"
-                player_name = row[name_key].replace("-", "#").lower().strip()
-                position = (
-                    row["roster position"].split("/")[0]
-                    if self.site == "dk"
-                    else row["position"]
-                )
-                if position == "D" and self.site == "fd":
-                    position = "DST"
-                team = row["teamabbrev"] if self.site == "dk" else row["team"]
-                if (player_name, position, team) in self.player_dict:
-                    if self.site == "dk":
-                        matchup = row["game info"].split(" ")[0]
-                        teams = matchup.split("@")
-                        opponent = teams[0] if teams[0] != team else teams[1]
-                    elif self.site == "fd":
+                if self.site == "dk":
+                    player_name = row["displayname"].replace("-", "#").lower().strip()
+                    position = row["position"]
+                    team = row["shortname"]
+                    key = (player_name, position, team)
+                    if key in self.player_dict:
+                        self.player_dict[key]["ID"] = int(row["draftableid"])
+                        self.player_dict[key]["Opponent"] = ""
+                        self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                else:
+                    player_name = row["nickname"].replace("-", "#").lower().strip()
+                    position = row["position"]
+                    if position == "D":
+                        position = "DST"
+                    team = row["team"]
+                    key = (player_name, position, team)
+                    if key in self.player_dict:
                         matchup = row["game"]
                         opponent = row["opponent"]
-                    self.player_dict[(player_name, position, team)][
-                        "Opponent"
-                    ] = opponent
-                    self.player_dict[(player_name, position, team)]["Matchup"] = matchup
-                    if self.site == "dk":
-                        self.player_dict[(player_name, position, team)]["ID"] = int(
-                            row["id"]
-                        )
-                    else:
-                        self.player_dict[(player_name, position, team)]["ID"] = row[
-                            "id"
-                        ]
+                        self.player_dict[key]["Opponent"] = opponent
+                        self.player_dict[key]["Matchup"] = matchup
+                        self.player_dict[key]["ID"] = row["id"]
 
     def load_rules(self):
         self.at_most = self.config["at_most"]
@@ -152,16 +146,16 @@ class NFL_Optimizer:
             for row in reader:
                 player_name = row["name"].replace("-", "#").lower().strip()
                 try:
-                    fpts = float(row["fpts"])
+                    fpts = float(row["projections_proj"])
                 except:
                     fpts = 0
                     print(
                         "unable to load player fpts: "
                         + player_name
                         + ", fpts:"
-                        + row["fpts"]
+                        + row["projections_proj"]
                     )
-                position = row["position"]
+                position = row["pos"]
                 if position == "D" or position == "DEF":
                     position = "DST"
 
@@ -171,8 +165,8 @@ class NFL_Optimizer:
 
                 if team == "JAX" and self.site == "fd":
                     team = "JAC"
-                if "stddev" in row:
-                    if row["stddev"] == "" or float(row["stddev"]) == 0:
+                if "fantasyyear_consistency" in row:
+                    if row["fantasyyear_consistency"] == "" or float(row["fantasyyear_consistency"]) == 0:
                         if position == "QB":
                             stddev = fpts * self.default_qb_var
                         elif position == "DST":
@@ -180,7 +174,7 @@ class NFL_Optimizer:
                         else:
                             stddev = fpts * self.default_skillpos_var
                     else:
-                        stddev = float(row["stddev"])
+                        stddev = float(row["fantasyyear_consistency"])
                 else:
                     if position == "QB":
                         stddev = fpts * self.default_qb_var
@@ -195,12 +189,12 @@ class NFL_Optimizer:
                         ceil = float(row["ceiling"])
                 else:
                     ceil = fpts + stddev
-                own = float(row["own%"].replace("%", ""))
+                own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
                 if (
-                    float(row["fpts"]) < self.projection_minimum
-                    and row["position"] != "DST"
+                    float(row["projections_proj"]) < self.projection_minimum
+                    and row["pos"] != "DST"
                 ):
                     continue
                 self.player_dict[(player_name, position, team)] = {
