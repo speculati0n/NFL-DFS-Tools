@@ -97,8 +97,8 @@ class NFL_Optimizer:
                         key = (player_name, position, team)
                         if key in self.player_dict:
                             self.player_dict[key]["ID"] = int(row["draftableid"])
-                            self.player_dict[key]["Opponent"] = ""
-                            self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                            if not self.player_dict[key].get("Matchup"):
+                                self.player_dict[key]["Matchup"] = row.get("start_date", "")
                             break
                 else:
                     position = row["position"]
@@ -183,6 +183,15 @@ class NFL_Optimizer:
 
                 if team == "JAX" and self.site == "fd":
                     team = "JAC"
+
+                opp = row.get("opp", "")
+                if opp in self.team_rename_dict:
+                    opp = self.team_rename_dict[opp]
+
+                if opp == "JAX" and self.site == "fd":
+                    opp = "JAC"
+
+                matchup = f"{team} @ {opp}" if opp else ""
                 if "fantasyyear_consistency" in row:
                     if row["fantasyyear_consistency"] == "" or float(row["fantasyyear_consistency"]) == 0:
                         if position == "QB":
@@ -221,8 +230,9 @@ class NFL_Optimizer:
                     "ID": 0,
                     "Salary": int(row["salary"].replace(",", "")),
                     "Name": row["name"],
-                    "Matchup": "",
+                    "Matchup": matchup,
                     "Team": team,
+                    "Opponent": opp,
                     "Ownership": own,
                     "Ceiling": ceil,
                     "StdDev": stddev,
