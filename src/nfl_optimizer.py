@@ -83,27 +83,45 @@ class NFL_Optimizer:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
                 if self.site == "dk":
-                    player_name = row["displayname"].replace("-", "#").lower().strip()
                     position = row["position"]
                     team = row["shortname"]
-                    key = (player_name, position, team)
-                    if key in self.player_dict:
-                        self.player_dict[key]["ID"] = int(row["draftableid"])
-                        self.player_dict[key]["Opponent"] = ""
-                        self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                    names = set()
+                    for col in ["displayname", "firstname", "lastname", "shortname"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    for name in names:
+                        player_name = name.replace("-", "#").lower().strip()
+                        key = (player_name, position, team)
+                        if key in self.player_dict:
+                            self.player_dict[key]["ID"] = int(row["draftableid"])
+                            self.player_dict[key]["Opponent"] = ""
+                            self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                            break
                 else:
-                    player_name = row["nickname"].replace("-", "#").lower().strip()
                     position = row["position"]
                     if position == "D":
                         position = "DST"
                     team = row["team"]
-                    key = (player_name, position, team)
-                    if key in self.player_dict:
-                        matchup = row["game"]
-                        opponent = row["opponent"]
-                        self.player_dict[key]["Opponent"] = opponent
-                        self.player_dict[key]["Matchup"] = matchup
-                        self.player_dict[key]["ID"] = row["id"]
+                    names = set()
+                    for col in ["nickname", "displayname", "firstname", "lastname", "shortname"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    for name in names:
+                        player_name = name.replace("-", "#").lower().strip()
+                        key = (player_name, position, team)
+                        if key in self.player_dict:
+                            matchup = row.get("game", "")
+                            opponent = row.get("opponent", "")
+                            self.player_dict[key]["Opponent"] = opponent
+                            self.player_dict[key]["Matchup"] = matchup
+                            self.player_dict[key]["ID"] = row.get("id", "")
+                            break
 
     def load_rules(self):
         self.at_most = self.config["at_most"]
@@ -385,7 +403,9 @@ class NFL_Optimizer:
         if not self.allow_qb_vs_dst:
             for team, players in self.players_by_team.items():
                 for qb in players.get("QB", []):
-                    opponent = qb["Opponent"]
+                    opponent = qb.get("Opponent")
+                    if opponent is None:
+                        continue
                     opposing_dsts = self.players_by_team.get(opponent, {}).get(
                         "DST", []
                     )

@@ -75,41 +75,61 @@ class NFL_Showdown_Optimizer:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
                 if self.site == "dk":
-                    player_name = row["displayname"].replace("-", "#").lower().strip()
                     position = row["position"]
                     team = row["shortname"]
-                    key = (player_name, position, team)
-                    if key in self.player_dict:
-                        self.player_dict[key]["Opponent"] = ""
-                        self.player_dict[key]["Matchup"] = row.get("start_date", "")
-                        self.player_dict[key]["ID"] = int(row["draftableid"])
-                        self.player_dict[key]["UniqueKey"] = int(row["draftableid"])
-                    else:
-                        print(f"Player in player_ids.csv not found in player_dict (projections.csv): {player_name} {position} {team}")
+                    names = set()
+                    for col in ["displayname", "firstname", "lastname", "shortname"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    matched = False
+                    for name in names:
+                        player_name = name.replace("-", "#").lower().strip()
+                        key = (player_name, position, team)
+                        if key in self.player_dict:
+                            self.player_dict[key]["Opponent"] = ""
+                            self.player_dict[key]["Matchup"] = row.get("start_date", "")
+                            self.player_dict[key]["ID"] = int(row["draftableid"])
+                            self.player_dict[key]["UniqueKey"] = int(row["draftableid"])
+                            matched = True
+                            break
+                    if not matched:
+                        base_name = row.get("displayname", "").replace("-", "#").lower().strip()
+                        print(
+                            f"Player in player_ids.csv not found in player_dict (projections.csv): {base_name} {position} {team}"
+                        )
                 else:
-                    player_name = row["nickname"].replace("-", "#").lower().strip()
                     position = row["position"]
                     if position == "D":
                         position = "DST"
                     team = row["team"]
-                    if (player_name, "CPT", team) in self.player_dict:
-                        matchup = row["game"]
-                        opponent = row["opponent"]
-                        self.player_dict[(player_name, "CPT", team)]["Opponent"] = opponent
-                        self.player_dict[(player_name, "CPT", team)]["Matchup"] = matchup
-                        self.player_dict[(player_name, "CPT", team)]["ID"] = row["id"]
-                        self.player_dict[(player_name, "CPT", team)]["UniqueKey"] = f'CPT:{row["id"]}'
-                    else:
-                        print(f"Player in player_ids.csv not found in player_dict (projections.csv): {player_name} CPT {team}")
-                    if (player_name, "FLEX", team) in self.player_dict:
-                        matchup = row["game"]
-                        opponent = row["opponent"]
-                        self.player_dict[(player_name, "FLEX", team)]["Opponent"] = opponent
-                        self.player_dict[(player_name, "FLEX", team)]["Matchup"] = matchup
-                        self.player_dict[(player_name, "FLEX", team)]["ID"] = row["id"]
-                        self.player_dict[(player_name, "FLEX", team)]["UniqueKey"] = f'FLEX:{row["id"]}'
-                    else:
-                        print(f"Player in player_ids.csv not found in player_dict (projections.csv): {player_name} FLEX {team}")
+                    names = set()
+                    for col in ["nickname", "displayname", "firstname", "lastname", "shortname"]:
+                        val = row.get(col)
+                        if val:
+                            names.add(val)
+                    if row.get("firstname") and row.get("lastname"):
+                        names.add(f"{row['firstname']} {row['lastname']}")
+                    for name in names:
+                        player_name = name.replace("-", "#").lower().strip()
+                        if (player_name, "CPT", team) in self.player_dict:
+                            matchup = row.get("game", "")
+                            opponent = row.get("opponent", "")
+                            self.player_dict[(player_name, "CPT", team)]["Opponent"] = opponent
+                            self.player_dict[(player_name, "CPT", team)]["Matchup"] = matchup
+                            self.player_dict[(player_name, "CPT", team)]["ID"] = row.get("id", "")
+                            self.player_dict[(player_name, "CPT", team)]["UniqueKey"] = f"CPT:{row.get('id', '')}"
+                        elif (player_name, "FLEX", team) in self.player_dict:
+                            matchup = row.get("game", "")
+                            opponent = row.get("opponent", "")
+                            self.player_dict[(player_name, "FLEX", team)]["Opponent"] = opponent
+                            self.player_dict[(player_name, "FLEX", team)]["Matchup"] = matchup
+                            self.player_dict[(player_name, "FLEX", team)]["ID"] = row.get("id", "")
+                            self.player_dict[(player_name, "FLEX", team)]["UniqueKey"] = f"FLEX:{row.get('id', '')}"
+                        else:
+                            continue
     def load_rules(self):
         self.at_most = self.config["at_most"]
         self.at_least = self.config["at_least"]
