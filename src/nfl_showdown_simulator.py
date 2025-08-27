@@ -25,31 +25,6 @@ def salary_boost(salary, max_salary):
     return (salary / max_salary) ** 2
 
 class NFL_Showdown_Simulator:
-    config = None
-    player_dict = {}
-    field_lineups = {}
-    stacks_dict = {}
-    gen_lineup_list = []
-    roster_construction = []
-    id_name_dict = {}
-    salary = None
-    optimal_score = None
-    field_size = None
-    team_list = []
-    num_iterations = None
-    site = None
-    payout_structure = {}
-    use_contest_data = False
-    entry_fee = None
-    use_lineup_input = None
-    matchups = set()
-    projection_minimum = 15
-    randomness_amount = 100
-    min_lineup_salary = 48000
-    max_pct_off_optimal = 0.4
-    teams_dict = collections.defaultdict(list)  # Initialize teams_dict
-    correlation_rules = {}
-
     def __init__(
         self,
         site,
@@ -58,8 +33,32 @@ class NFL_Showdown_Simulator:
         use_contest_data,
         use_lineup_input,
     ):
+        # Instance attributes
+        self.config = None
+        self.player_dict = {}
+        self.field_lineups = {}
+        self.stacks_dict = {}
+        self.gen_lineup_list = []
+        self.roster_construction = []
+        self.id_name_dict = {}
+        self.salary = None
+        self.optimal_score = None
+        self.field_size = None
+        self.team_list = []
+        self.num_iterations = None
         self.site = site
+        self.payout_structure = {}
+        self.use_contest_data = False
+        self.entry_fee = None
         self.use_lineup_input = use_lineup_input
+        self.matchups = set()
+        self.projection_minimum = 15
+        self.randomness_amount = 100
+        self.min_lineup_salary = 48000
+        self.max_pct_off_optimal = 0.4
+        self.teams_dict = collections.defaultdict(list)
+        self.correlation_rules = {}
+
         self.load_config()
         self.load_rules()
 

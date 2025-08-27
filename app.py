@@ -7,6 +7,7 @@ from src.nfl_gpp_simulator import NFL_GPP_Simulator
 from src.nfl_showdown_simulator import NFL_Showdown_Simulator
 
 app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @app.route('/')
 def index():
@@ -15,7 +16,7 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     site = request.form['site']
-    data_dir = f"{site}_data"
+    data_dir = os.path.join(BASE_DIR, f"{site}_data")
     os.makedirs(data_dir, exist_ok=True)
     projections = request.files.get('projections')
     players = request.files.get('players')
@@ -28,7 +29,7 @@ def upload():
     if contest and contest.filename:
         contest.save(os.path.join(data_dir, 'contest_structure.csv'))
     if config and config.filename:
-        config.save('config.json')
+        config.save(os.path.join(BASE_DIR, 'config.json'))
     return redirect('/')
 
 @app.route('/optimize', methods=['POST'])
