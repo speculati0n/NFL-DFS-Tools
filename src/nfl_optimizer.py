@@ -189,6 +189,11 @@ class NFL_Optimizer:
                         + ", fpts:"
                         + row["projections_proj"]
                     )
+                actpts = (
+                    float(row.get("projections_actpts", 0))
+                    if row.get("projections_actpts", "") not in ["", None]
+                    else 0
+                )
                 position = row["pos"]
                 if position == "D" or position == "DEF":
                     position = "DST"
@@ -242,6 +247,7 @@ class NFL_Optimizer:
                     continue
                 self.player_dict[(player_name, position, team)] = {
                     "Fpts": fpts,
+                    "ActPts": actpts,
                     "Position": position,
                     "ID": 0,
                     "Salary": int(row["salary"].replace(",", "")),
@@ -905,13 +911,14 @@ class NFL_Optimizer:
         out_path = os.path.join(os.path.dirname(__file__), filename_out)
         with open(out_path, "w") as f:
             f.write(
-                "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Fpts Used,Ceiling,Own. Sum,Own. Product,STDDEV,Stack\n"
+                "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Fpts Used,Fpts Act,Ceiling,Own. Sum,Own. Product,STDDEV,Stack\n"
             )
             for x, fpts_used in sorted_lineups:
                 stack_str = self.construct_stack_string(x)
 
                 salary = sum(self.player_dict[player]["Salary"] for player in x)
                 fpts_p = sum(self.player_dict[player]["Fpts"] for player in x)
+                act_p = sum(self.player_dict[player].get("ActPts", 0) for player in x)
                 own_s = sum(self.player_dict[player]["Ownership"] for player in x)
                 own_p = np.prod(
                     [self.player_dict[player]["Ownership"] / 100 for player in x]
@@ -941,6 +948,7 @@ class NFL_Optimizer:
                         salary,
                         round(fpts_p, 2),
                         round(fpts_used, 2),
+                        round(act_p, 2),
                         ceil,
                         own_s,
                         own_p,
@@ -970,6 +978,7 @@ class NFL_Optimizer:
                         salary,
                         round(fpts_p, 2),
                         round(fpts_used, 2),
+                        round(act_p, 2),
                         ceil,
                         own_s,
                         own_p,
