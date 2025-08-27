@@ -769,11 +769,20 @@ class NFL_GPP_Simulator:
                         "Opp DST": -0.27,
                     }
                 team = row["team"]
+                opp = row.get("opp", "")
+
                 if team == "LA":
                     team = "LAR"
+                if opp == "LA":
+                    opp = "LAR"
+
                 if self.site == "fd":
                     if team == "JAX":
                         team = "JAC"
+                    if opp == "JAX":
+                        opp = "JAC"
+
+                matchup = tuple(sorted([team, opp])) if opp else ()
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
@@ -784,8 +793,9 @@ class NFL_GPP_Simulator:
                     "Position": position,
                     "Name": player_name,
                     "Team": team,
-                    "Opp": "",
+                    "Opp": opp,
                     "ID": "",
+                    "Matchup": matchup,
                     "Salary": int(row["salary"].replace(",", "")),
                     "StdDev": stddev,
                     "Ceiling": ceil,
@@ -795,11 +805,8 @@ class NFL_GPP_Simulator:
                     "In Lineup": False,
                 }
 
-                # Check if player is in player_dict and get Opp, ID, Opp Pitcher ID and Opp Pitcher Name
+                # Preserve any existing player ID if present
                 if (player_name, pos_str, team) in self.player_dict:
-                    player_data["Opp"] = self.player_dict[
-                        (player_name, pos_str, team)
-                    ].get("Opp", "")
                     player_data["ID"] = self.player_dict[
                         (player_name, pos_str, team)
                     ].get("ID", "")
@@ -808,6 +815,8 @@ class NFL_GPP_Simulator:
                 self.teams_dict[team].append(
                     player_data
                 )  # Add player data to their respective team
+                if matchup:
+                    self.matchups.add(matchup)
 
     def load_team_stacks(self):
         # Initialize a dictionary to hold QB ownership by team
