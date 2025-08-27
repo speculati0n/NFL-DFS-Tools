@@ -493,8 +493,7 @@ class NFL_GPP_Simulator:
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
                     team = row.get("team") or row.get("teamabbrev")
-                    if team in self.team_rename_dict:
-                        team = self.team_rename_dict[team]
+
                     pos_str = str(position)
                     names = set()
                     for col in ["displayname", "firstname", "lastname", "shortname"]:
