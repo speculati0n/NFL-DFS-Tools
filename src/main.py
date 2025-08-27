@@ -21,9 +21,14 @@ config_file = st.sidebar.file_uploader(
     "Config JSON (optional)", type="json"
 )
 
+# Determine repository root so uploaded files are saved where the
+# optimizer expects them (one level above ``src``).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
 if st.sidebar.button("Save Files"):
     if site_upload:
-        data_dir = f"{site_upload}_data"
+        data_dir = os.path.join(ROOT_DIR, f"{site_upload}_data")
         os.makedirs(data_dir, exist_ok=True)
         if projections_file:
             with open(os.path.join(data_dir, "projections.csv"), "wb") as f:
@@ -35,7 +40,7 @@ if st.sidebar.button("Save Files"):
             with open(os.path.join(data_dir, "contest_structure.csv"), "wb") as f:
                 f.write(contest_file.getbuffer())
         if config_file and config_file.name:
-            with open("config.json", "wb") as f:
+            with open(os.path.join(ROOT_DIR, "config.json"), "wb") as f:
                 f.write(config_file.getbuffer())
         st.sidebar.success("Files saved.")
     else:
