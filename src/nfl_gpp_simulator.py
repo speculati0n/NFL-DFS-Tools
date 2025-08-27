@@ -660,6 +660,11 @@ class NFL_GPP_Simulator:
                         + ", fpts:"
                         + row["projections_proj"]
                     )
+                actpts = (
+                    float(row.get("projections_actpts", 0))
+                    if row.get("projections_actpts", "") not in ["", None]
+                    else 0
+                )
                 fieldFpts = fpts
                 position = [pos for pos in row["pos"].split("/")]
                 position.sort()
@@ -788,6 +793,7 @@ class NFL_GPP_Simulator:
                 pos_str = str(position)
                 player_data = {
                     "Fpts": fpts,
+                    "ActPts": actpts,
                     "fieldFpts": fieldFpts,
                     "Position": position,
                     "Name": player_name,
@@ -1770,6 +1776,27 @@ class NFL_GPP_Simulator:
             failed = len(output) - len(valid_output)
             if failed:
                 print(f"{failed} lineups failed to generate and were skipped")
+            if not valid_output and diff > 0:
+                top_players = sorted(
+                    self.player_dict.values(),
+                    key=lambda v: v.get("fieldFpts", 0),
+                    reverse=True,
+                )
+                fallback_ids = [
+                    p["ID"] for p in top_players[: len(self.roster_construction)]
+                ]
+                fallback = {
+                    0: {
+                        "Lineup": fallback_ids,
+                        "Wins": 0,
+                        "Top1Percent": 0,
+                        "Cashes": 0,
+                        "ROI": 0,
+                        "Type": "Fallback",
+                        "Count": 1,
+                    }
+                }
+                valid_output = [fallback]
             self.update_field_lineups(valid_output, len(valid_output))
             end_time = time.time()
             print("lineups took " + str(end_time - start_time) + " seconds")
@@ -2202,6 +2229,7 @@ class NFL_GPP_Simulator:
             salary = 0
             fpts_p = 0
             fieldFpts_p = 0
+            act_p = 0
             ceil_p = 0
             own_p = []
             lu_names = []
@@ -2224,6 +2252,7 @@ class NFL_GPP_Simulator:
                         salary += v["Salary"]
                         fpts_p += v["Fpts"]
                         fieldFpts_p += v["fieldFpts"]
+                        act_p += v.get("ActPts", 0)
                         ceil_p += v["Ceiling"]
                         own_p.append(v["Ownership"] / 100)
                         lu_names.append(v["Name"])
@@ -2267,6 +2296,7 @@ class NFL_GPP_Simulator:
                     extra_parts = [
                         fpts_p,
                         fieldFpts_p,
+                        act_p,
                         ceil_p,
                         salary,
                         f"{win_p}%",
@@ -2284,6 +2314,7 @@ class NFL_GPP_Simulator:
                     extra_parts = [
                         fpts_p,
                         fieldFpts_p,
+                        act_p,
                         ceil_p,
                         salary,
                         f"{win_p}%",
@@ -2302,7 +2333,7 @@ class NFL_GPP_Simulator:
                         x["ROI"] / x['Count'] / self.entry_fee / self.num_iterations * 100, 2
                     )
                     roi_round = round(x["ROI"] / x['Count'] / self.num_iterations, 2)
-                    lineup_str = "{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{},{},{},{},{}%,{}%,{}%,{},${},{},{},{},{},{}".format(
+                    lineup_str = "{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{},{},{},{},{},{}%,{}%,{}%,{},${},{},{},{},{},{}".format(
                         lu_names[1].replace("#", "-"),
                         x["Lineup"][1],
                         lu_names[2].replace("#", "-"),
@@ -2323,6 +2354,7 @@ class NFL_GPP_Simulator:
                         x["Lineup"][0],
                         fpts_p,
                         fieldFpts_p,
+                        act_p,
                         ceil_p,
                         salary,
                         win_p,
@@ -2337,7 +2369,7 @@ class NFL_GPP_Simulator:
                         simDupes
                     )
                 else:
-                    lineup_str = "{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{},{},{},{},{}%,{}%,{},{},{},{},{},{}".format(
+                    lineup_str = "{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{},{},{},{},{},{}%,{}%,{},{},{},{},{},{}".format(
                         lu_names[1].replace("#", "-"),
                         x["Lineup"][1],
                         lu_names[2].replace("#", "-"),
@@ -2358,6 +2390,7 @@ class NFL_GPP_Simulator:
                         x["Lineup"][0],
                         fpts_p,
                         fieldFpts_p,
+                        act_p,
                         ceil_p,
                         salary,
                         win_p,
@@ -2381,20 +2414,20 @@ class NFL_GPP_Simulator:
             if self.site == "dk":
                 if self.use_contest_data:
                     f.write(
-                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Ceiling,Salary,Win %,Top 10%,ROI%,Proj. Own. Product,Avg. Return,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
+                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Salary,Win %,Top 10%,ROI%,Proj. Own. Product,Avg. Return,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
                     )
                 else:
                     f.write(
-                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Ceiling,Salary,Win %,Top 10%, Proj. Own. Product,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
+                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Salary,Win %,Top 10%, Proj. Own. Product,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
                     )
             elif self.site == "fd":
                 if self.use_contest_data:
                     f.write(
-                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Ceiling,Salary,Win %,Top 10%,ROI%,Proj. Own. Product,Avg. Return,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
+                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Salary,Win %,Top 10%,ROI%,Proj. Own. Product,Avg. Return,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
                     )
                 else:
                     f.write(
-                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Ceiling,Salary,Win %,Top 10%,Proj. Own. Product,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
+                        "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Fpts Proj,Field Fpts Proj,Fpts Act,Ceiling,Salary,Win %,Top 10%,Proj. Own. Product,Stack1 Type,Stack2 Type,Players vs DST,Lineup Type, Sim Dupes\n"
                     )
 
             for fpts, lineup_str in unique.items():

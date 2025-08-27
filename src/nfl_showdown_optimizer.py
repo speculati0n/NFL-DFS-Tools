@@ -210,9 +210,16 @@ class NFL_Showdown_Optimizer:
                 if cptn_ownership == 0.1:
                     cptn_ownership = 0.5 * ownership
 
+                actpts = (
+                    float(row.get("projections_actpts", 0))
+                    if row.get("projections_actpts", "") not in ["", None]
+                    else 0
+                )
+
                 # Assign FLEX then CPTN position for showdown
                 self.player_dict[(player_name, "FLEX", team)] = {
                     "Fpts": float(row["projections_proj"]),
+                    "ActPts": actpts,
                     "RosterPosition": "FLEX",
                     "NormalPosition": position,
                     "ID": 0,
@@ -226,6 +233,7 @@ class NFL_Showdown_Optimizer:
                 }
                 self.player_dict[(player_name, "CPT", team)] = {
                     "Fpts": 1.5 * float(row["projections_proj"]),
+                    "ActPts": 1.5 * actpts,
                     "RosterPosition": "CPT",
                     "NormalPosition": position,
                     "ID": 0,
@@ -780,11 +788,11 @@ class NFL_Showdown_Optimizer:
         with open(out_path, "w") as f:
             if self.site == "dk":
                 f.write(
-                    "CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Fpts Used,Ceiling,Own. Product,Own. Sum,STDDEV,Stack Type\n"
+                    "CPT,FLEX,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Fpts Used,Fpts Act,Ceiling,Own. Product,Own. Sum,STDDEV,Stack Type\n"
                 )
             else:
                 f.write(
-                    "MVP,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Fpts Used,Ceiling,Own. Product,Own. Sum,STDDEV,Stack Type\n"
+                    "MVP,FLEX,FLEX,FLEX,FLEX,Salary,Fpts Proj,Fpts Used,Fpts Act,Ceiling,Own. Product,Own. Sum,STDDEV,Stack Type\n"
                 )
             for x, fpts_used in self.lineups:
                 team_count = {}
@@ -800,6 +808,7 @@ class NFL_Showdown_Optimizer:
 
                 salary = sum(self.player_dict[player]["Salary"] for player in x)
                 fpts_p = sum(self.player_dict[player]["Fpts"] for player in x)
+                act_p = sum(self.player_dict[player].get("ActPts", 0) for player in x)
                 own_s = sum(self.player_dict[player]["Ownership"] for player in x)
                 own_p = np.prod(
                     [self.player_dict[player]["Ownership"] / 100 for player in x]
@@ -807,7 +816,7 @@ class NFL_Showdown_Optimizer:
                 ceil = sum([self.player_dict[player]["Ceiling"] for player in x])
                 stddev = sum([self.player_dict[player]["StdDev"] for player in x])
                 lineup_str = (
-                    "{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{},{},{},{},{},{},{},{}".format(
+                    "{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{},{},{},{},{},{},{},{},{}".format(
                         self.player_dict[x[0]]["Name"],
                         self.player_dict[x[0]]["ID"],
                         self.player_dict[x[1]]["Name"],
@@ -823,6 +832,7 @@ class NFL_Showdown_Optimizer:
                         salary,
                         round(fpts_p, 2),
                         round(fpts_used, 2),
+                        round(act_p, 2),
                         ceil,
                         own_p,
                         own_s,
@@ -844,6 +854,7 @@ class NFL_Showdown_Optimizer:
                         salary,
                         round(fpts_p, 2),
                         round(fpts_used, 2),
+                        round(act_p, 2),
                         ceil,
                         own_p,
                         own_s,
