@@ -843,10 +843,7 @@ class NFL_GPP_Simulator:
     def load_lineups_from_file(self):
         print("loading lineups")
         i = 0
-        path = os.path.join(
-            os.path.dirname(__file__),
-            "../{}_data/{}".format(self.site, "tournament_lineups.csv"),
-        )
+        path = get_data_path(self.site, "tournament_lineups.csv")
         with open(path) as file:
             reader = pd.read_csv(file)
             lineup = []
@@ -977,6 +974,7 @@ class NFL_GPP_Simulator:
             in_lineup.fill(0)
         reject = True
         iteration_count = 0
+        max_iterations = 5000
         total_players = num_players_in_roster
         issue = ""
         complete = ""
@@ -995,6 +993,10 @@ class NFL_GPP_Simulator:
         # print(lu_num, ' started',  team_stack, max_stack_len)
         while reject:
             iteration_count += 1
+            if iteration_count > max_iterations:
+                raise RuntimeError(
+                    f"Failed to generate lineup after {max_iterations} iterations"
+                )
             if team_stack == "":
                 salary = 0
                 proj = 0
