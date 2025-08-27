@@ -12,6 +12,8 @@ st.title("NFL DFS Tools")
 # Sidebar for uploading files
 st.sidebar.header("Upload Required Files")
 site_upload = st.sidebar.text_input("Site (dk or fd)")
+# Normalize the site input to avoid path issues
+site_upload = site_upload.strip().lower()
 projections_file = st.sidebar.file_uploader("Projections CSV", type="csv")
 players_file = st.sidebar.file_uploader("Player IDs CSV", type="csv")
 contest_file = st.sidebar.file_uploader(
@@ -52,6 +54,7 @@ if st.sidebar.button("Save Files"):
 st.header("Optimize Lineups")
 with st.form("optimize"):
     site_opt = st.text_input("Site", key="site_opt")
+    site_opt = site_opt.strip().lower()
     num_lineups = st.number_input("Number of Lineups", min_value=1, value=1, step=1)
     num_uniques = st.number_input("Number of Uniques", min_value=1, value=1, step=1)
     mode_opt = st.selectbox("Mode", ["classic", "showdown"], key="mode_opt")
@@ -71,6 +74,7 @@ with st.form("optimize"):
 st.header("Simulate Tournament")
 with st.form("simulate"):
     site_sim = st.text_input("Site", key="site_sim")
+    site_sim = site_sim.strip().lower()
     field_size = st.number_input("Field Size", min_value=1, value=10, step=1)
     num_iterations = st.number_input("Iterations", min_value=1, value=10, step=1)
     mode_sim = st.selectbox("Mode", ["classic", "showdown"], key="mode_sim")
