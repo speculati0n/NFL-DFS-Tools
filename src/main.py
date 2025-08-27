@@ -1,4 +1,5 @@
 import os
+import shutil
 import pandas as pd
 import streamlit as st
 
@@ -58,6 +59,7 @@ with st.form("optimize"):
     num_lineups = st.number_input("Number of Lineups", min_value=1, value=1, step=1)
     num_uniques = st.number_input("Number of Uniques", min_value=1, value=1, step=1)
     mode_opt = st.selectbox("Mode", ["classic", "showdown"], key="mode_opt")
+    save_lineups = st.checkbox("Save lineups for simulator")
     submitted_opt = st.form_submit_button("Run Optimizer")
     if submitted_opt:
         if mode_opt == "showdown":
@@ -66,6 +68,10 @@ with st.form("optimize"):
             opto = NFL_Optimizer(site_opt, num_lineups, num_uniques)
         opto.optimize()
         output_path = opto.output()
+        if save_lineups:
+            dest_dir = os.path.join(UPLOAD_DIR, site_opt)
+            os.makedirs(dest_dir, exist_ok=True)
+            shutil.copy(output_path, os.path.join(dest_dir, "tournament_lineups.csv"))
         df = pd.read_csv(output_path)
         st.subheader("Lineups")
         st.dataframe(df)
@@ -78,15 +84,21 @@ with st.form("simulate"):
     field_size = st.number_input("Field Size", min_value=1, value=10, step=1)
     num_iterations = st.number_input("Iterations", min_value=1, value=10, step=1)
     mode_sim = st.selectbox("Mode", ["classic", "showdown"], key="mode_sim")
+    use_contest_data = st.checkbox("Use contest structure")
+    use_lineup_input = st.checkbox("Use saved lineups")
     submitted_sim = st.form_submit_button("Run Simulation")
     if submitted_sim:
         if mode_sim == "showdown":
-            sim = NFL_Showdown_Simulator(site_sim, field_size, num_iterations, False, False)
+            sim = NFL_Showdown_Simulator(
+                site_sim, field_size, num_iterations, use_contest_data, use_lineup_input
+            )
             sim.generate_field_lineups()
             sim.run_tournament_simulation()
             lineup_path, exposure_path = sim.save_results()
         else:
-            sim = NFL_GPP_Simulator(site_sim, field_size, num_iterations, False, False)
+            sim = NFL_GPP_Simulator(
+                site_sim, field_size, num_iterations, use_contest_data, use_lineup_input
+            )
             sim.generate_field_lineups()
             sim.run_tournament_simulation()
             lineup_path, exposure_path = sim.output()
