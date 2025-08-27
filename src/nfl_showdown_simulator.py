@@ -425,10 +425,11 @@ class NFL_Showdown_Simulator:
 
     # Load config from file
     def load_config(self):
-        with open(
-            os.path.join(os.path.dirname(__file__), "../config.json"),
-            encoding="utf-8-sig",
-        ) as json_file:
+        base_path = os.path.join(os.path.dirname(__file__), "..")
+        config_path = os.path.join(base_path, "config.json")
+        if not os.path.exists(config_path):
+            config_path = os.path.join(base_path, "sample.config.json")
+        with open(config_path, encoding="utf-8-sig") as json_file:
             self.config = json.load(json_file)
 
     # Load projections from file
