@@ -48,6 +48,7 @@ class NFL_GPP_Simulator:
         7: ["TE"],
         8: ["RB", "WR", "TE"],
     }
+    team_rename_dict = {"LA": "LAR"}
 
     def __init__(
         self,
@@ -492,6 +493,7 @@ class NFL_GPP_Simulator:
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
                     team = row.get("team") or row.get("teamabbrev")
+
                     pos_str = str(position)
                     names = set()
                     for col in ["displayname", "firstname", "lastname", "shortname"]:
@@ -534,6 +536,10 @@ class NFL_GPP_Simulator:
                     if "QB" not in position and "DST" not in position:
                         position.append("FLEX")
                     team = row["team"]
+                    if team in self.team_rename_dict:
+                        team = self.team_rename_dict[team]
+                    if self.site == "fd" and team == "JAX":
+                        team = "JAC"
                     pos_str = str(position)
                     names = set()
                     for col in ["nickname", "displayname", "firstname", "lastname", "shortname"]:
@@ -769,11 +775,10 @@ class NFL_GPP_Simulator:
                         "Opp DST": -0.27,
                     }
                 team = row["team"]
-                if team == "LA":
-                    team = "LAR"
-                if self.site == "fd":
-                    if team == "JAX":
-                        team = "JAC"
+                if team in self.team_rename_dict:
+                    team = self.team_rename_dict[team]
+                if self.site == "fd" and team == "JAX":
+                    team = "JAC"
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
