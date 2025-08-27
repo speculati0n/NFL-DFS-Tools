@@ -29,9 +29,9 @@ To install these tools, you may either clone this repository or download the rep
 
 ![Download image](readme_images/download.png)
 
-After you have cloned or downloaded the code base, you must import player contest data from DraftKings or FanDuel. Reference the screenshots below for your relative site. You will need to rename these files to `player_ids.csv`, and place into their relative directory (`dk_data/` or `fd_data/`). These directories should be folders located in the same directory as `src/` and `output/`, and will hold relevant data for each site.
+After you have cloned or downloaded the code base, you must import player contest data from DraftKings or FanDuel. Reference the screenshots below for your relative site. You will need to rename these files to `player_ids.csv`, and place into their relative directory (`dk_data/` or `fd_data/`). These directories should be folders located in the same directory as `src/` and `output/`, and will hold relevant data for each site. For DraftKings the file must include the columns `start_date`, `draftableid`, `displayname`, `position`, `firstname`, `lastname`, and `shortname`.
 
-After you have the player data, you must import data from Awesemo, namely the projections, ownership, boom/bust tool. Download them as CSV, and rename them to match the image below. These will go in either `dk_data/` or `fd_data/` depending on which data you downloaded.
+After you have the player data, you must import projection data. The projections CSV should provide `name`, `pos`, `team`, `salary`, `projections_proj`, `projections_projown`, and `fantasyyear_consistency` columns. Download the file and rename it to match the image below. These will go in either `dk_data/` or `fd_data/` depending on which data you downloaded.
 
 ![Directory image](readme_images/directory.png)
 
@@ -96,8 +96,8 @@ The structure for the config is as follows:
 
 ```
 {
-    "projection_path": "projections.csv", // This is where projections are loaded from -- the required columns are "Name", "Position", "Team", "Salary", "Fpts", "Own%", and "StdDev". "Ceiling" is an optional column, if not provided then it is calculated as Fpts + StdDev. "Field Fpts" is also an optional column, if provided the field generation algorithm will consider this projection when building lineups instead of "Fpts". The basic theory behind this is the field may not use the same projections as the user, so providing an 'industry' projection could make more sense to reduce bias in lineup building. If you are optimizing or simulating for Showdown, you also need a "CptOwn%" column. If it is not provided, it is calculated as half of the normal ownership.
-    "player_path": "player_ids.csv", // This is where player ids are loaded from -- this is the direct player ID export from DraftKings/Fanduel found on the contest or edit lineups page.
+    "projection_path": "projections.csv", // This is where projections are loaded from -- the required columns are "name", "pos", "team", "salary", "projections_proj", "projections_projown", and "fantasyyear_consistency". "Ceiling" is an optional column, if not provided then it is calculated as projections_proj + fantasyyear_consistency. "Field Fpts" is also an optional column, if provided the field generation algorithm will consider this projection when building lineups instead of projections_proj. If you are optimizing or simulating for Showdown, you may also include a "cptown%" column. If it is not provided, it is calculated as half of the normal ownership.
+    "player_path": "player_ids.csv", // This is where player ids are loaded from -- for DraftKings the required columns are "start_date", "draftableid", "displayname", "position", "firstname", "lastname", and "shortname".
     "contest_structure_path": "contest_structure.csv", // This is where GPP sim tournament strucure is loaded from -- as seen above, the required columns are "Place", "Payout", "Field Size", "Entry Fee"
     "use_double_te": true, // should the field lineup generator use double te lineups
     "global_team_limit": 4, // max number of players allowed on one team by the field lineup generator
