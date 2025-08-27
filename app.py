@@ -41,6 +41,7 @@ def optimize():
     num_lineups = request.form['num_lineups']
     num_uniques = request.form['num_uniques']
     mode = request.form.get('mode', 'classic')
+    save_lineups = 'save_lineups' in request.form
 
     if mode == 'showdown':
         opto = NFL_Showdown_Optimizer(site, num_lineups, num_uniques)
@@ -48,6 +49,10 @@ def optimize():
         opto = NFL_Optimizer(site, num_lineups, num_uniques)
     opto.optimize()
     output_path = opto.output()
+    if save_lineups:
+        dest_dir = os.path.join(UPLOAD_DIR, site)
+        os.makedirs(dest_dir, exist_ok=True)
+        shutil.copy(output_path, os.path.join(dest_dir, 'tournament_lineups.csv'))
     df = pd.read_csv(output_path)
     tables = [("Lineups", df.to_html(index=False))]
     return render_template('results.html', title='Optimization Results', tables=tables)
@@ -58,14 +63,16 @@ def simulate():
     field_size = request.form['field_size']
     num_iterations = request.form['num_iterations']
     mode = request.form.get('mode', 'classic')
+    use_contest_data = 'use_contest_data' in request.form
+    use_lineup_input = 'use_lineup_input' in request.form
 
     if mode == 'showdown':
-        sim = NFL_Showdown_Simulator(site, field_size, num_iterations, False, False)
+        sim = NFL_Showdown_Simulator(site, field_size, num_iterations, use_contest_data, use_lineup_input)
         sim.generate_field_lineups()
         sim.run_tournament_simulation()
         lineup_path, exposure_path = sim.save_results()
     else:
-        sim = NFL_GPP_Simulator(site, field_size, num_iterations, False, False)
+        sim = NFL_GPP_Simulator(site, field_size, num_iterations, use_contest_data, use_lineup_input)
         sim.generate_field_lineups()
         sim.run_tournament_simulation()
         lineup_path, exposure_path = sim.output()

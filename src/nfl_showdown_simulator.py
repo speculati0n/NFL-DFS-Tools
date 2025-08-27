@@ -694,10 +694,7 @@ class NFL_Showdown_Simulator:
     def load_lineups_from_file(self):
         print("loading lineups")
         i = 0
-        path = os.path.join(
-            os.path.dirname(__file__),
-            "../{}_data/{}".format(self.site, "tournament_lineups.csv"),
-        )
+        path = get_data_path(self.site, "tournament_lineups.csv")
         with open(path) as file:
             reader = pd.read_csv(file)
             lineup = []
@@ -869,8 +866,13 @@ class NFL_Showdown_Simulator:
         lus = {}
         in_lineup.fill(0)
         iteration_count = 0
+        max_iterations = 5000
         while True:
             iteration_count += 1
+            if iteration_count > max_iterations:
+                raise RuntimeError(
+                    f"Failed to generate lineup after {max_iterations} iterations"
+                )
             salary, proj = 0, 0
             lineup, player_teams, lineup_matchups = [], [], []
             def_opp, players_opposing_def, cpt_selected = None, 0, False
