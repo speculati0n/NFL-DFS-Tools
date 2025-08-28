@@ -94,7 +94,6 @@ class NFL_GPP_Simulator:
 
         player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
-        self.load_team_stacks()
 
         # ownership_path = os.path.join(
         #    os.path.dirname(__file__),
@@ -154,6 +153,7 @@ class NFL_GPP_Simulator:
 
         # self.adjust_default_stdev()
         self.assertPlayerDict()
+        self.load_team_stacks()
         self.num_iterations = int(num_iterations)
         self.get_optimal()
         if self.use_lineup_input:
@@ -825,6 +825,8 @@ class NFL_GPP_Simulator:
     def load_team_stacks(self):
         # Initialize a dictionary to hold QB ownership by team
         qb_ownership_by_team = {}
+        # Reset stacks_dict to ensure it reflects the current player pool
+        self.stacks_dict = {}
 
         for p in self.player_dict:
             # Check if player is a QB
@@ -1304,9 +1306,8 @@ class NFL_GPP_Simulator:
                     valid_team[np.nonzero(pos_matrix[valid_team, 1] > 0)[0]]
                 )
                 if qb_candidates.size == 0:
-                    raise ValueError(
-                        f"No quarterback available for team stack {team_stack}"
-                    )
+                    # No quarterback available for the selected team stack. Skip this lineup.
+                    return None
                 qb = qb_candidates[0]
                 salary += salaries[qb]
                 proj += projections[qb]
