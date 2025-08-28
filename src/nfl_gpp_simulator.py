@@ -1300,9 +1300,14 @@ class NFL_GPP_Simulator:
                 lineup = np.zeros(shape=pos_matrix.shape[1]).astype(str)
                 valid_team = np.nonzero(teams == team_stack)[0]
                 # select qb
-                qb = np.unique(
+                qb_candidates = np.unique(
                     valid_team[np.nonzero(pos_matrix[valid_team, 1] > 0)[0]]
-                )[0]
+                )
+                if qb_candidates.size == 0:
+                    raise ValueError(
+                        f"No quarterback available for team stack {team_stack}"
+                    )
+                qb = qb_candidates[0]
                 salary += salaries[qb]
                 proj += projections[qb]
                 # print(salary)
