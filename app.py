@@ -53,8 +53,9 @@ def optimize():
         dest_dir = os.path.join(UPLOAD_DIR, site)
         os.makedirs(dest_dir, exist_ok=True)
         shutil.copy(output_path, os.path.join(dest_dir, 'tournament_lineups.csv'))
-    df = pd.read_csv(output_path)
-    tables = [("Lineups", df.to_html(index=False))]
+    # Only load the first 1000 lineups for display to avoid rendering huge tables
+    df = pd.read_csv(output_path, nrows=1000)
+    tables = [("Lineups (first 1000)", df.to_html(index=False))]
     return render_template('results.html', title='Optimization Results', tables=tables)
 
 @app.route('/simulate', methods=['POST'])
@@ -77,10 +78,11 @@ def simulate():
         sim.run_tournament_simulation()
         lineup_path, exposure_path = sim.output()
 
-    lineup_df = pd.read_csv(lineup_path)
+    # Limit displayed lineups to the first 1000 while keeping full export files
+    lineup_df = pd.read_csv(lineup_path, nrows=1000)
     exposure_df = pd.read_csv(exposure_path)
     tables = [
-        ("Lineups", lineup_df.to_html(index=False)),
+        ("Lineups (first 1000)", lineup_df.to_html(index=False)),
         ("Exposure", exposure_df.to_html(index=False)),
     ]
     return render_template('results.html', title='Simulation Results', tables=tables)
