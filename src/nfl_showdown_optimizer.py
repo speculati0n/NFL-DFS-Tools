@@ -270,7 +270,7 @@ class NFL_Showdown_Optimizer:
                     self.player_dict[(player_name, "FLEX", team)]
                 )
 
-    def optimize(self):
+    def optimize(self, progress_callback=None):
         # Setup our linear programming equation - https://en.wikipedia.org/wiki/Linear_programming
         # We will use PuLP as our solver - https://coin-or.github.io/pulp/
 
@@ -737,8 +737,12 @@ class NFL_Showdown_Optimizer:
             fpts_used = self.problem.objective.value()
             self.lineups.append((players, fpts_used))
 
-            if i % 100 == 0:
-                print(i)
+            progress = i + 1
+            percent = (progress / self.num_lineups) * 100
+            if progress_callback:
+                progress_callback(progress, self.num_lineups)
+            else:
+                print(f"{progress}/{self.num_lineups} {percent:.0f}%")
 
             # Ensure this lineup isn't picked again
             self.problem += (
