@@ -12,6 +12,12 @@
       <h2>{{ name }}</h2>
       {{ table|safe }}
     {% endfor %}
+    {% if lineup_url %}
+      <p><a href="{{ lineup_url }}">Download Lineups CSV</a></p>
+    {% endif %}
+    {% if stack_url %}
+      <p><a href="{{ stack_url }}">Download Stack Exposure CSV</a></p>
+    {% endif %}
     <a href="/">Back</a>
   </body>
 </html>

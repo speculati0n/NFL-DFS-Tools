@@ -2,7 +2,7 @@ import os
 import shutil
 import threading
 import pandas as pd
-from flask import Flask, render_template, request, redirect, jsonify
+from flask import Flask, render_template, request, redirect, jsonify, send_file, abort
 from src.nfl_optimizer import NFL_Optimizer
 from src.nfl_showdown_optimizer import NFL_Showdown_Optimizer
 from src.nfl_gpp_simulator import NFL_GPP_Simulator
@@ -12,7 +12,7 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 
-progress_data = {"current": 0, "total": 0, "percent": 0, "status": "idle", "output_path": None}
+progress_data = {"current": 0, "total": 0, "percent": 0, "status": "idle", "output_path": None, "stack_path": None}
 
 
 def update_progress(current, total):
@@ -109,7 +109,11 @@ def simulate():
     if stack_path:
         stack_df = pd.read_csv(stack_path)
         tables.append(("Stack Exposure", stack_df.to_html(index=False)))
-    return render_template('results.html', title='Simulation Results', tables=tables)
+    progress_data.update({'output_path': lineup_path, 'stack_path': stack_path})
+    lineup_url = '/download/lineups' if lineup_path else None
+    stack_url = '/download/stacks' if stack_path else None
+    return render_template('results.html', title='Simulation Results', tables=tables,
+                           lineup_url=lineup_url, stack_url=stack_url)
 
 
 @app.route('/reset', methods=['POST'])
@@ -137,7 +141,22 @@ def results():
     if stack_path:
         stack_df = pd.read_csv(stack_path)
         tables.append(("Stack Exposure", stack_df.to_html(index=False)))
-    return render_template('results.html', title='Optimization Results', tables=tables)
+    lineup_url = '/download/lineups' if progress_data.get('output_path') else None
+    stack_url = '/download/stacks' if stack_path else None
+    return render_template('results.html', title='Optimization Results', tables=tables,
+                           lineup_url=lineup_url, stack_url=stack_url)
+
+
+@app.route('/download/<file_type>')
+def download(file_type):
+    path = None
+    if file_type == 'lineups':
+        path = progress_data.get('output_path')
+    elif file_type == 'stacks':
+        path = progress_data.get('stack_path')
+    if not path or not os.path.exists(path):
+        return abort(404)
+    return send_file(path, as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True)
