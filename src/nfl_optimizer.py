@@ -9,10 +9,9 @@ import pulp as plp
 import copy
 import itertools
 from random import shuffle, choice
-from collections import Counter
 
 from utils import get_data_path, get_config_path
-from selection_exposures import select_lineups
+from selection_exposures import select_lineups, report_lineup_exposures
 from stack_metrics import analyze_lineup
 
 
@@ -52,6 +51,7 @@ class NFL_Optimizer:
         self.default_skillpos_var = 0.5
         self.default_def_var = 0.5
         self.min_lineup_salary = 0
+        self.stack_exposure_df = None
 
         self.load_config()
         self.load_rules()
@@ -936,25 +936,9 @@ class NFL_Optimizer:
                     for (players, fpts) in self.lineups
                     if tuple(players) in selected_set
                 ]
-                presence_tot = Counter()
-                mult_tot = Counter()
-                bucket_tot = Counter()
-                for lineup in selected_players:
-                    metrics = analyze_lineup(lineup, self.player_dict)
-                    presence_tot.update(metrics["presence"])
-                    mult_tot.update(metrics["counts"])
-                    bucket_tot[metrics["bucket"]] += 1
-                n = len(selected_players)
-                print("Exposure Results:")
-                for k, t in targets.get("presence_targets_pct", {}).items():
-                    ach = presence_tot.get(k, 0) / n if n else 0
-                    print(f"Presence {k}: {ach:.2f} (target {t:.2f})")
-                for k, t in targets.get("multiplicity_targets_mean", {}).items():
-                    ach = mult_tot.get(k, 0) / n if n else 0
-                    print(f"Multiplicity {k}: {ach:.2f} (target {t:.2f})")
-                for k, t in targets.get("bucket_mix_pct", {}).items():
-                    ach = bucket_tot.get(k, 0) / n if n else 0
-                    print(f"Bucket {k}: {ach:.2f} (target {t:.2f})")
+                self.stack_exposure_df = report_lineup_exposures(
+                    selected_players, self.player_dict, targets
+                )
             else:
                 print(f"Warning: profile {self.profile} not found in config")
         else:
@@ -1030,8 +1014,16 @@ class NFL_Optimizer:
                 lineup_str = ",".join(map(str, fields))
                 f.write(f"{lineup_str}\n")
 
+        stack_path = None
+        if self.stack_exposure_df is not None:
+            stack_filename = (
+                f"../output/{self.site}_stack_exposure_{formatted_timestamp}.csv"
+            )
+            stack_path = os.path.join(os.path.dirname(__file__), stack_filename)
+            self.stack_exposure_df.to_csv(stack_path, index=False)
+
         print("Output done.")
-        return out_path
+        return out_path, stack_path
 
     def sort_lineup(self, lineup):
         copy_lineup = copy.deepcopy(lineup)

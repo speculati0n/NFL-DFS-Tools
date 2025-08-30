@@ -1,10 +1,13 @@
 import os
 import sys
+import re
 from collections import Counter
+
+import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from selection_exposures import select_lineups
+from selection_exposures import select_lineups, report_lineup_exposures
 from stack_metrics import analyze_lineup
 
 
@@ -59,3 +62,13 @@ def test_selector_hits_targets():
         assert abs(mult_total[k] / n - tgt) <= 0.05
     for k, tgt in targets["bucket_mix_pct"].items():
         assert abs(bucket_total[k] / n - tgt) <= 0.02
+
+
+def test_report_lineup_exposures(capsys):
+    selected = select_lineups(lineups, player_dict, targets, 20)
+    df = report_lineup_exposures(selected, player_dict, targets)
+    out = capsys.readouterr().out
+    assert re.search(r"Presence\s+QB\+WR\s+0\.50\s+0\.50", out)
+    assert re.search(r"Bucket\s+QB\+WR\+OppWR\s+0\.50\s+0\.50", out)
+    wr_row = df[df["Stack"] == "QB+WR"].iloc[0]
+    assert wr_row["Achieved"] == pytest.approx(0.5, abs=0.01)
