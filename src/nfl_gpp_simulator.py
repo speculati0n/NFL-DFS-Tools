@@ -22,6 +22,8 @@ from numba import jit
 import datetime
 
 from utils import get_data_path, get_config_path
+from stack_metrics import analyze_lineup
+from selection_exposures import select_lineups
 
 @jit(nopython=True)
 def salary_boost(salary, max_salary):
@@ -56,6 +58,8 @@ class NFL_GPP_Simulator:
         num_iterations,
         use_contest_data,
         use_lineup_input,
+        profile=None,
+        pool_factor=5.0,
     ):
         # Instance attributes
         self.config = None
@@ -87,9 +91,22 @@ class NFL_GPP_Simulator:
         self.seen_lineups_ix = {}
         self.use_te_stack = True
         self.require_bring_back = True
+        self.profile = profile
+        self.pool_factor = pool_factor
+        self.targets = {}
 
         self.load_config()
         self.load_rules()
+        if self.profile and "profiles" in self.config:
+            profile_cfg = self.config["profiles"].get(self.profile)
+            if profile_cfg:
+                self.targets = {
+                    "presence_targets_pct": profile_cfg.get("presence_targets_pct", {}),
+                    "multiplicity_targets_mean": profile_cfg.get("multiplicity_targets_mean", {}),
+                    "bucket_mix_pct": profile_cfg.get("bucket_mix_pct", {}),
+                }
+            else:
+                print(f"Warning: profile {self.profile} not found in config")
 
         projection_path = get_data_path(site, self.config["projection_path"])
         self.load_projections(projection_path)
@@ -1683,7 +1700,12 @@ class NFL_GPP_Simulator:
         return lus
 
     def generate_field_lineups(self):
-        diff = self.field_size - len(self.field_lineups)
+        pool_size = (
+            max(int(self.field_size * self.pool_factor), self.field_size)
+            if self.profile
+            else self.field_size
+        )
+        diff = pool_size - len(self.field_lineups)
         if diff <= 0:
             print(
                 "supplied lineups >= contest field size. only retrieving the first "
@@ -1839,6 +1861,51 @@ class NFL_GPP_Simulator:
             # print("Reject counters:", dict(overall_reject_counters))
 
             # print(self.field_lineups)
+
+        if self.profile and self.targets:
+            pool = []
+            for rec in self.field_lineups.values():
+                pool.extend([rec["Lineup"]] * rec["Count"])
+            selected = select_lineups(pool, self.player_dict, self.targets, self.field_size)
+            presence_tot = Counter()
+            mult_tot = Counter()
+            bucket_tot = Counter()
+            for lu in selected:
+                m = analyze_lineup(lu, self.player_dict)
+                presence_tot.update(m["presence"])
+                mult_tot.update(m["counts"])
+                bucket_tot[m["bucket"]] += 1
+            n = len(selected)
+            print("Exposure Results:")
+            for k, t in self.targets.get("presence_targets_pct", {}).items():
+                ach = presence_tot.get(k, 0) / n if n else 0
+                print(f"Presence {k}: {ach:.2f} (target {t:.2f})")
+            for k, t in self.targets.get("multiplicity_targets_mean", {}).items():
+                ach = mult_tot.get(k, 0) / n if n else 0
+                print(f"Multiplicity {k}: {ach:.2f} (target {t:.2f})")
+            for k, t in self.targets.get("bucket_mix_pct", {}).items():
+                ach = bucket_tot.get(k, 0) / n if n else 0
+                print(f"Bucket {k}: {ach:.2f} (target {t:.2f})")
+            self.field_lineups = {}
+            self.seen_lineups = {}
+            self.seen_lineups_ix = {}
+            for i, lu in enumerate(selected):
+                if self.site == "dk":
+                    sorted_lineup = self.sort_lineup_by_start_time(lu)
+                else:
+                    sorted_lineup = lu
+                self.field_lineups[i] = {
+                    "Lineup": sorted_lineup,
+                    "Wins": 0,
+                    "Top1Percent": 0,
+                    "Cashes": 0,
+                    "ROI": 0,
+                    "Type": "Profile",
+                    "Count": 1,
+                }
+                lineup_set = frozenset(sorted_lineup)
+                self.seen_lineups[lineup_set] = 1
+                self.seen_lineups_ix[lineup_set] = i
 
     def get_start_time(self, player_id):
         for _, player in self.player_dict.items():
@@ -2269,8 +2336,6 @@ class NFL_GPP_Simulator:
             own_p = []
             lu_names = []
             lu_teams = []
-            qb_stack = 0
-            qb_tm = ""
             players_vs_def = 0
             def_opps = []
             simDupes = x['Count']
@@ -2279,8 +2344,6 @@ class NFL_GPP_Simulator:
                     if v["ID"] == id:
                         if "DST" in v["Position"]:
                             def_opps.append(v["Opp"])
-                        if "QB" in v["Position"]:
-                            qb_tm = v["Team"]
             for id in x["Lineup"]:
                 for k, v in self.player_dict.items():
                     if v["ID"] == id:
@@ -2296,18 +2359,19 @@ class NFL_GPP_Simulator:
                             if v["Team"] in def_opps:
                                 players_vs_def += 1
                         continue
-            counter = collections.Counter(lu_teams)
-            stacks = counter.most_common()
 
-            # Find the QB team in stacks and set it as primary stack, remove it from stacks and subtract 1 to make sure qb isn't counted
-            for s in stacks:
-                if s[0] == qb_tm:
-                    primaryStack = str(qb_tm) + " " + str((s[1]))
-                    stacks.remove(s)
-                    break
-
-            # After removing QB team, the first team in stacks will be the team with most players not in QB stack
-            secondaryStack = str(stacks[0][0]) + " " + str(stacks[0][1])
+            metrics = analyze_lineup(x["Lineup"], self.player_dict)
+            stack_parts = []
+            for k, v in metrics["counts"].items():
+                if v > 0 and k != "No Stack":
+                    if v > 1:
+                        stack_parts.append(f"{k} x{v}")
+                    else:
+                        stack_parts.append(k)
+            if not stack_parts and metrics["presence"].get("No Stack"):
+                stack_parts.append("No Stack")
+            primaryStack = " ; ".join(stack_parts)
+            secondaryStack = ""
             own_p = np.prod(own_p)
             win_p = round(x["Wins"] / self.num_iterations * 100, 2)
             top10_p = round(x["Top1Percent"] / self.num_iterations * 100, 2)

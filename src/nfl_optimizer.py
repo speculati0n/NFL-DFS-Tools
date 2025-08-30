@@ -1091,47 +1091,14 @@ class NFL_Optimizer:
         return final_lineup
 
     def construct_stack_string(self, lineup):
-        lineup = [self.player_dict[p] for p in lineup]
-        # Find the QB
-        qb = lineup[0]
-
-        # Count players from QB's team
-        n = sum(
-            1
-            for player in lineup
-            if player["Team"] == qb["Team"] and player["Position"] != "DST"
-        )
-
-        # Count players from QB's opponent team
-        x = sum(
-            1
-            for player in lineup
-            if player["Team"] == qb["Opponent"] and player["Position"] != "DST"
-        )
-
-        # Now, let's find secondary stacks
-        secondary_stacks = []
-        seen_teams = [qb["Team"], qb["Opponent"]]
-        for player in lineup:
-            if player["Position"] != "QB" and player["Position"] != "DST":
-                opponent_players = sum(
-                    1
-                    for p in lineup
-                    if p["Team"] == player["Opponent"] and player["Position"] != "DST"
-                )
-                team_players = sum(
-                    1
-                    for p in lineup
-                    if p["Team"] == player["Team"] and player["Position"] != "DST"
-                )
-                if opponent_players > 0 and player["Team"] not in seen_teams:
-                    secondary_stacks.append(f"{team_players}|{opponent_players}")
-                    seen_teams.append(player["Team"])
-                    seen_teams.append(player["Opponent"])
-
-        # Joining all to construct the final string
-        stack_string = f"QB+{n - 1}|{x}"
-        if secondary_stacks:
-            stack_string += " ; " + " ; ".join(secondary_stacks)
-
-        return stack_string
+        metrics = analyze_lineup(lineup, self.player_dict)
+        parts = []
+        for k, v in metrics["counts"].items():
+            if v > 0 and k != "No Stack":
+                if v > 1:
+                    parts.append(f"{k} x{v}")
+                else:
+                    parts.append(k)
+        if not parts and metrics["presence"].get("No Stack"):
+            parts.append("No Stack")
+        return " ; ".join(parts)

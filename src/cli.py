@@ -98,7 +98,13 @@ def main(arguments):
         # if 'match' in arguments:
         #    match_lineup_input_to_field_size = True
         sim = nfl_gpp_simulator.NFL_GPP_Simulator(
-            site, field_size, num_iterations, use_contest_data, use_file_upload
+            site,
+            field_size,
+            num_iterations,
+            use_contest_data,
+            use_file_upload,
+            profile=profile,
+            pool_factor=pool_factor,
         )
         sim.generate_field_lineups()
         sim.run_tournament_simulation()
