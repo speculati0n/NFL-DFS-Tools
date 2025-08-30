@@ -4,7 +4,7 @@ from collections import Counter
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from selection_exposures import select_lineups
+from selection_exposures import select_lineups, report_lineup_exposures
 from stack_metrics import analyze_lineup
 
 
@@ -59,3 +59,11 @@ def test_selector_hits_targets():
         assert abs(mult_total[k] / n - tgt) <= 0.05
     for k, tgt in targets["bucket_mix_pct"].items():
         assert abs(bucket_total[k] / n - tgt) <= 0.02
+
+
+def test_report_lineup_exposures(capsys):
+    selected = select_lineups(lineups, player_dict, targets, 20)
+    report_lineup_exposures(selected, player_dict, targets)
+    out = capsys.readouterr().out
+    assert "Presence QB+WR: 0.50 (target 0.50)" in out
+    assert "Bucket QB+WR+OppWR: 0.50 (target 0.50)" in out

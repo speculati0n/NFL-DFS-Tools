@@ -23,7 +23,7 @@ import datetime
 
 from utils import get_data_path, get_config_path
 from stack_metrics import analyze_lineup
-from selection_exposures import select_lineups
+from selection_exposures import select_lineups, report_lineup_exposures
 
 @jit(nopython=True)
 def salary_boost(salary, max_salary):
@@ -1918,26 +1918,11 @@ class NFL_GPP_Simulator:
             # print(self.field_lineups)
 
         if self.profile and self.targets:
-
-            presence_tot = Counter()
-            mult_tot = Counter()
-            bucket_tot = Counter()
-            for lu in selected:
-
-                presence_tot.update(m["presence"])
-                mult_tot.update(m["counts"])
-                bucket_tot[m["bucket"]] += 1
-            n = len(selected)
-            print("Exposure Results:")
-            for k, t in self.targets.get("presence_targets_pct", {}).items():
-                ach = presence_tot.get(k, 0) / n if n else 0
-                print(f"Presence {k}: {ach:.2f} (target {t:.2f})")
-            for k, t in self.targets.get("multiplicity_targets_mean", {}).items():
-                ach = mult_tot.get(k, 0) / n if n else 0
-                print(f"Multiplicity {k}: {ach:.2f} (target {t:.2f})")
-            for k, t in self.targets.get("bucket_mix_pct", {}).items():
-                ach = bucket_tot.get(k, 0) / n if n else 0
-                print(f"Bucket {k}: {ach:.2f} (target {t:.2f})")
+            candidates = [v["Lineup"] for v in self.field_lineups.values()]
+            selected = select_lineups(
+                candidates, self.player_dict, self.targets, self.field_size
+            )
+            report_lineup_exposures(selected, self.player_dict, self.targets)
             self.field_lineups = {}
             self.seen_lineups = {}
             self.seen_lineups_ix = {}
