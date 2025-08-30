@@ -6,18 +6,35 @@ import time
 
 
 def main(arguments):
-    if len(arguments) < 3 or len(arguments) > 7:
+    if len(arguments) < 3:
         print("Incorrect usage. Please see `README.md` for proper usage.")
         exit()
 
     site = arguments[1]
     process = arguments[2]
 
+    profile = None
+    pool_factor = 5.0
+    if "--profile" in arguments:
+        idx = arguments.index("--profile")
+        if idx + 1 < len(arguments):
+            profile = arguments[idx + 1]
+        del arguments[idx : idx + 2]
+    if "--pool-factor" in arguments:
+        idx = arguments.index("--pool-factor")
+        if idx + 1 < len(arguments):
+            pool_factor = float(arguments[idx + 1])
+        del arguments[idx : idx + 2]
+
     if process == "opto":
-        num_lineups = arguments[3]
-        num_uniques = arguments[4]
+        if len(arguments) >= 5:
+            num_lineups = arguments[3]
+            num_uniques = arguments[4]
+        else:
+            num_lineups = 150
+            num_uniques = 1
         start = time.time()
-        opto = NFL_Optimizer(site, num_lineups, num_uniques)
+        opto = NFL_Optimizer(site, num_lineups, num_uniques, profile=profile, pool_factor=pool_factor)
         opto.optimize()
         opto.output()
         end = time.time()
@@ -81,7 +98,13 @@ def main(arguments):
         # if 'match' in arguments:
         #    match_lineup_input_to_field_size = True
         sim = nfl_gpp_simulator.NFL_GPP_Simulator(
-            site, field_size, num_iterations, use_contest_data, use_file_upload
+            site,
+            field_size,
+            num_iterations,
+            use_contest_data,
+            use_file_upload,
+            profile=profile,
+            pool_factor=pool_factor,
         )
         sim.generate_field_lineups()
         sim.run_tournament_simulation()
