@@ -65,18 +65,17 @@ def optimize():
 
     if mode == 'showdown':
         opto = NFL_Showdown_Optimizer(site, num_lineups, num_uniques)
+        total = opto.num_lineups
     else:
         opto = NFL_Optimizer(site, num_lineups, num_uniques)
 
-    total = opto.num_lineups
 
     progress_data.update({'current': 0, 'total': total, 'percent': 0, 'status': 'running', 'output_path': None})
 
     thread = threading.Thread(target=run_optimizer, args=(opto, site, save_lineups))
     thread.start()
 
-    # Respond immediately so the frontend can begin polling progress
-    return jsonify({"status": "started"})
+
 
 @app.route('/simulate', methods=['POST'])
 def simulate():
