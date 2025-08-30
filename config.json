@@ -3,6 +3,8 @@
     "player_path": "player_ids.csv",
     "contest_structure_path": "contest_structure.csv",
     "use_double_te": false,
+    "use_te_stack": true,
+    "require_bring_back": true,
     "global_team_limit": 4,
     "projection_minimum": 5,
     "randomness": 25,
