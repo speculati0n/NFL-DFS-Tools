@@ -739,10 +739,7 @@ class NFL_Showdown_Optimizer:
 
             progress = i + 1
             percent = (progress / self.num_lineups) * 100
-            if progress_callback:
-                progress_callback(progress, self.num_lineups)
-            else:
-                print(f"{progress}/{self.num_lineups} {percent:.0f}%")
+
 
             # Ensure this lineup isn't picked again
             self.problem += (
