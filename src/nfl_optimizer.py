@@ -5,6 +5,7 @@ import datetime
 import pytz
 import timedelta
 import numpy as np
+import pandas as pd
 import pulp as plp
 import copy
 import itertools
@@ -950,6 +951,24 @@ class NFL_Optimizer:
         for lineup, fpts_used in self.lineups:
             sorted_lineup = self.sort_lineup(lineup)
             sorted_lineups.append((sorted_lineup, fpts_used))
+
+        # Aggregate stack metrics across all generated lineups
+        report = report_lineup_exposures(
+            [lu for lu, _ in sorted_lineups], self.player_dict, self.config
+        )
+        self.stack_exposure_df = (
+            pd.concat(
+                [
+                    pd.Series(report.get("presence", {}), name="presence"),
+                    pd.Series(report.get("multiplicity", {}), name="multiplicity"),
+                    pd.Series(report.get("bucket", {}), name="bucket"),
+                ],
+                axis=1,
+            )
+            .fillna(0)
+            .rename_axis("Stack")
+            .reset_index()
+        )
 
         team_stack_counts = {}
 

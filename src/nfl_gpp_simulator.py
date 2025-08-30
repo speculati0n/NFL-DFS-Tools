@@ -2380,6 +2380,25 @@ class NFL_GPP_Simulator:
                 "Position": pos,
                 "Opponent": v.get("Opp"),
             }
+
+        report = report_lineup_exposures(
+            [x["Lineup"] for x in self.field_lineups.values()],
+            id_player_dict,
+            self.config,
+        )
+        self.stack_exposure_df = (
+            pd.concat(
+                [
+                    pd.Series(report.get("presence", {}), name="presence"),
+                    pd.Series(report.get("multiplicity", {}), name="multiplicity"),
+                    pd.Series(report.get("bucket", {}), name="bucket"),
+                ],
+                axis=1,
+            )
+            .fillna(0)
+            .rename_axis("Stack")
+            .reset_index()
+        )
         unique = {}
         for index, x in self.field_lineups.items():
             # if index == 0:
