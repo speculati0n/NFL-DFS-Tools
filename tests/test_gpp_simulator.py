@@ -1,5 +1,6 @@
 import sys, os
 import pytest
+import csv
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 from nfl_gpp_simulator import NFL_GPP_Simulator
@@ -72,3 +73,74 @@ def test_matchups_populated_and_lineups_generate(monkeypatch):
     sim.optimal_score = 200
     sim.generate_field_lineups()
     assert len(sim.field_lineups) > 0
+
+
+def test_output_includes_stack_columns(monkeypatch):
+    monkeypatch.setattr(NFL_GPP_Simulator, "get_optimal", lambda self: None)
+    monkeypatch.setattr(NFL_GPP_Simulator, "load_correlation_rules", lambda self: None)
+
+    class DummyPool:
+        def __init__(self, *args, **kwargs):
+            self._processes = 1
+            self._state = "RUN"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            pass
+
+        def starmap(self, func, iterable):
+            return [func(*args) for args in iterable]
+
+        def close(self):
+            pass
+
+        def join(self):
+            pass
+
+    monkeypatch.setattr(nfl_gpp_simulator.mp, "Pool", lambda *a, **k: DummyPool())
+    monkeypatch.setattr(NFL_GPP_Simulator, "sort_lineup_by_start_time", lambda self, lu: lu)
+
+    called = {"flag": False}
+    original_analyze = nfl_gpp_simulator.analyze_lineup
+
+    def wrapped_analyze_lineup(lineup, player_dict):
+        assert all("Opponent" in p for p in player_dict.values())
+        called["flag"] = True
+        return original_analyze(lineup, player_dict)
+
+    monkeypatch.setattr(nfl_gpp_simulator, "analyze_lineup", wrapped_analyze_lineup)
+
+    sim = NFL_GPP_Simulator(
+        site="dk",
+        field_size=1,
+        num_iterations=1,
+        use_contest_data=False,
+        use_lineup_input=False,
+    )
+
+    sim.pct_field_using_stacks = 0
+    sim.pct_field_double_stacks = 0
+    sim.optimal_score = 200
+    sim.generate_field_lineups()
+    sim.output()
+
+    assert called["flag"]
+
+    lineups_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "output",
+        f"dk_gpp_sim_lineups_{sim.field_size}_{sim.num_iterations}.csv",
+    )
+
+    with open(lineups_path) as f:
+        rows = list(csv.reader(f))
+
+    header = rows[0]
+    data = rows[1]
+    stack1_idx = header.index("Stack1 Type")
+    stack2_idx = header.index("Stack2 Type")
+    assert data[stack1_idx] != ""
+    assert "Stack2 Type" in header
