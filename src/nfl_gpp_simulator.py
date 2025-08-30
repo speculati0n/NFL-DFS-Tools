@@ -1016,10 +1016,16 @@ class NFL_GPP_Simulator:
         total_players = num_players_in_roster
         issue = ""
         complete = ""
-        reasonable_projection = optimal_score - (max_pct_off_optimal * optimal_score)
-        reasonable_stack_projection = optimal_score - (
-            (max_pct_off_optimal * 1.25) * optimal_score
-        )
+        if optimal_score is None:
+            reasonable_projection = 0
+            reasonable_stack_projection = 0
+        else:
+            reasonable_projection = optimal_score - (
+                max_pct_off_optimal * optimal_score
+            )
+            reasonable_stack_projection = optimal_score - (
+                (max_pct_off_optimal * 1.25) * optimal_score
+            )
         max_players_per_team = 4 if site == "fd" else None
         # reject_counters = {
         #     "salary_too_low": 0,
@@ -2320,8 +2326,11 @@ class NFL_GPP_Simulator:
         )
 
     def output(self):
-        id_player_dict = {
+        if not self.field_lineups:
+            self.generate_field_lineups()
 
+        id_player_dict = {
+            v["ID"]: {**v, "Opponent": v.get("Opp")}
             for v in self.player_dict.values()
         }
         unique = {}
