@@ -296,7 +296,7 @@ class NFL_Optimizer:
                     self.player_dict[(player_name, position, team)]
                 )
 
-    def optimize(self):
+    def optimize(self, progress_callback=None):
         # Setup our linear programming equation - https://en.wikipedia.org/wiki/Linear_programming
         # We will use PuLP as our solver - https://coin-or.github.io/pulp/
 
@@ -887,7 +887,7 @@ class NFL_Optimizer:
 
             progress = i + 1
             percent = (progress / num_pool) * 100
-            print(f"{progress}/{num_pool} {percent:.0f}%")
+
 
             # Ensure this lineup isn't picked again
             self.problem += (
