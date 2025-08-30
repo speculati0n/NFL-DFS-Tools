@@ -737,8 +737,9 @@ class NFL_Showdown_Optimizer:
             fpts_used = self.problem.objective.value()
             self.lineups.append((players, fpts_used))
 
-            if i % 100 == 0:
-                print(i)
+            progress = i + 1
+            percent = (progress / self.num_lineups) * 100
+            print(f"{progress}/{self.num_lineups} {percent:.0f}%")
 
             # Ensure this lineup isn't picked again
             self.problem += (
