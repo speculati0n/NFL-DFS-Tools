@@ -9,8 +9,19 @@
     "min_lineup_salary": 49200, 
     "max_pct_off_optimal": 0.25,
     "num_players_vs_def" : 0,
-    "pct_field_using_stacks" : 0.65, 
-    "pct_field_double_stacks": 0.4,
+    "lineup_strategy": "top_heavy",
+    "pct_field_using_stacks": {
+        "min_cash": 0.85,
+        "top_heavy": 0.9
+    },
+    "pct_field_double_stacks": {
+        "min_cash": 0.15,
+        "top_heavy": 0.3
+    },
+    "te_stack_pct": {
+        "min_cash": 0.1,
+        "top_heavy": 0.3
+    },
     "default_qb_var" : 0.4, 
     "default_skillpos_var" : 0.5, 
     "default_def_var" : 0.5,
