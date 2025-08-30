@@ -887,10 +887,7 @@ class NFL_Optimizer:
 
             progress = i + 1
             percent = (progress / num_pool) * 100
-            if progress_callback:
-                progress_callback(progress, num_pool)
-            else:
-                print(f"{progress}/{num_pool} {percent:.0f}%")
+
 
             # Ensure this lineup isn't picked again
             self.problem += (
