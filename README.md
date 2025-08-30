@@ -97,8 +97,7 @@ The optimizer can steer final lineups toward profile-driven stack exposures. Use
 python -m src.cli dk opto --profile top10_consistency --pool-factor 5.0
 # ceiling build (TE-heavy, double+bring-back spice)
 python -m src.cli dk opto --profile top1_ceiling --pool-factor 6.0
-# simulator usage (shape the field with a profile)
-python -m src.cli dk sim 10000 1000 --profile top10_consistency --pool-factor 5.0
+
 ```
 
 ## Config
