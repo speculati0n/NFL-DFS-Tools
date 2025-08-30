@@ -85,6 +85,8 @@ class NFL_GPP_Simulator:
         self.correlation_rules = {}
         self.seen_lineups = {}
         self.seen_lineups_ix = {}
+        self.use_te_stack = True
+        self.require_bring_back = True
 
         self.load_config()
         self.load_rules()
@@ -178,6 +180,8 @@ class NFL_GPP_Simulator:
         self.overlap_limit = float(self.config["num_players_vs_def"])
         self.pct_field_double_stacks = float(self.config["pct_field_double_stacks"])
         self.correlation_rules = self.config["custom_correlations"]
+        self.use_te_stack = bool(self.config.get("use_te_stack", True))
+        self.require_bring_back = bool(self.config.get("require_bring_back", True))
 
     def assertPlayerDict(self):
         for p, s in list(self.player_dict.items()):
@@ -980,6 +984,8 @@ class NFL_GPP_Simulator:
         matchups,
         num_players_in_roster,
         site,
+        use_te_stack,
+        require_bring_back,
     ):
         # new random seed for each lineup (without this there is a ton of dupes)
         rng = np.random.Generator(np.random.PCG64())
@@ -1316,11 +1322,21 @@ class NFL_GPP_Simulator:
                 lineup[1] = ids[qb]
                 in_lineup[qb] = 1
                 lineup_matchups.append(matchups[qb])
-                valid_players = np.unique(
-                    valid_team[np.nonzero(pos_matrix[valid_team, 4:8] > 0)[0]]
-                )
+                if use_te_stack:
+                    valid_players = np.unique(
+                        valid_team[
+                            np.nonzero(pos_matrix[valid_team, 4:8] > 0)[0]
+                        ]
+                    )
+                else:
+                    valid_players = np.unique(
+                        valid_team[
+                            np.nonzero(pos_matrix[valid_team, 4:7] > 0)[0]
+                        ]
+                    )
                 player_teams.append(teams[qb])
                 players_opposing_def = 0
+                opp_team = opponents[qb]
                 plyr_list = ids[valid_players]
                 prob_list = ownership[valid_players]
                 prob_list = prob_list / prob_list.sum()
@@ -1373,9 +1389,20 @@ class NFL_GPP_Simulator:
                 for ix, (l, pos) in enumerate(zip(lineup, pos_matrix.T)):
                     if l == "0.0":
                         if k < 1:
-                            valid_players = np.nonzero(
-                                (pos > 0) & (in_lineup == 0) & (opponents != team_stack)
-                            )[0]
+                            if require_bring_back:
+                                valid_players = np.nonzero(
+                                    (pos > 0)
+                                    & (in_lineup == 0)
+                                    & (teams == opp_team)
+                                )[0]
+                                if valid_players.size == 0:
+                                    valid_players = np.nonzero(
+                                        (pos > 0) & (in_lineup == 0)
+                                    )[0]
+                            else:
+                                valid_players = np.nonzero(
+                                    (pos > 0) & (in_lineup == 0)
+                                )[0]
                             # grab names of players eligible
                             plyr_list = ids[valid_players]
                             # create np array of probability of being selected based on ownership and who is eligible at the position
@@ -1764,6 +1791,8 @@ class NFL_GPP_Simulator:
                     matchups,
                     num_players_in_roster,
                     self.site,
+                    self.use_te_stack,
+                    self.require_bring_back,
                 )
                 problems.append(lu_tuple)
             start_time = time.time()
