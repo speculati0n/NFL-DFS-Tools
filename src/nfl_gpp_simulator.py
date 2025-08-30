@@ -1863,15 +1863,12 @@ class NFL_GPP_Simulator:
             # print(self.field_lineups)
 
         if self.profile and self.targets:
-            pool = []
-            for rec in self.field_lineups.values():
-                pool.extend([rec["Lineup"]] * rec["Count"])
-            selected = select_lineups(pool, self.player_dict, self.targets, self.field_size)
+
             presence_tot = Counter()
             mult_tot = Counter()
             bucket_tot = Counter()
             for lu in selected:
-                m = analyze_lineup(lu, self.player_dict)
+
                 presence_tot.update(m["presence"])
                 mult_tot.update(m["counts"])
                 bucket_tot[m["bucket"]] += 1
@@ -2323,6 +2320,7 @@ class NFL_GPP_Simulator:
         )
 
     def output(self):
+        id_player_dict = {v["ID"]: v for v in self.player_dict.values()}
         unique = {}
         for index, x in self.field_lineups.items():
             # if index == 0:
@@ -2360,7 +2358,7 @@ class NFL_GPP_Simulator:
                                 players_vs_def += 1
                         continue
 
-            metrics = analyze_lineup(x["Lineup"], self.player_dict)
+
             stack_parts = []
             for k, v in metrics["counts"].items():
                 if v > 0 and k != "No Stack":

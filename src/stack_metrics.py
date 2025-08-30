@@ -18,7 +18,7 @@ def detect_presence(lineup: List[str], player_dict: Dict) -> Dict[str, int]:
     qb_team = None
     opp_team = None
     for key in lineup:
-        info = player_dict[key]
+
         if info["Position"] == "QB":
             qb_team = info["Team"]
             opp_team = info.get("Opponent")
@@ -28,7 +28,7 @@ def detect_presence(lineup: List[str], player_dict: Dict) -> Dict[str, int]:
     te_by_team = defaultdict(list)
     rb_by_team = defaultdict(list)
     for key in lineup:
-        info = player_dict[key]
+
         pos = info["Position"]
         team = info["Team"]
         if pos == "WR":
@@ -79,7 +79,7 @@ def count_multiplicity(lineup: List[str], player_dict: Dict) -> Dict[str, int]:
     qb_team = None
     opp_team = None
     for key in lineup:
-        info = player_dict[key]
+
         if info["Position"] == "QB":
             qb_team = info["Team"]
             opp_team = info.get("Opponent")
@@ -89,7 +89,7 @@ def count_multiplicity(lineup: List[str], player_dict: Dict) -> Dict[str, int]:
     te_by_team = defaultdict(list)
     rb_by_team = defaultdict(list)
     for key in lineup:
-        info = player_dict[key]
+
         pos = info["Position"]
         team = info["Team"]
         if pos == "WR":
@@ -138,7 +138,7 @@ def exclusive_bucket(lineup: List[str], player_dict: Dict) -> str:
     qb_team = None
     opp_team = None
     for key in lineup:
-        info = player_dict[key]
+
         if info["Position"] == "QB":
             qb_team = info["Team"]
             opp_team = info.get("Opponent")
@@ -148,7 +148,7 @@ def exclusive_bucket(lineup: List[str], player_dict: Dict) -> str:
     te_by_team = defaultdict(list)
     rb_by_team = defaultdict(list)
     for key in lineup:
-        info = player_dict[key]
+
         pos = info["Position"]
         team = info["Team"]
         if pos == "WR":
