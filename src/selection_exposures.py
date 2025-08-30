@@ -87,7 +87,8 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
     return [candidates[i] for i in selected]
 
 
-
+def report_lineup_exposures(lineups: List[List[str]], player_dict: Dict, targets: Dict) -> Dict[str, Dict[str, float]]:
+    """Print and return lineup exposure metrics.
 
     Parameters
     ----------
@@ -98,6 +99,11 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
     targets : dict
         Exposure targets from config (presence, multiplicity and bucket).
 
+    Returns
+    -------
+    dict
+        A dictionary with presence, multiplicity and bucket exposure data.
+    """
 
     presence_tot = Counter()
     mult_tot = Counter()
@@ -109,4 +115,28 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
         bucket_tot[metrics["bucket"]] += 1
     n = len(lineups)
 
+    def pct(val):
+        return val / n if n else 0
+
+    presence_pct = {k: pct(v) for k, v in presence_tot.items()}
+    mult_pct = {k: pct(v) for k, v in mult_tot.items()}
+    bucket_pct = {k: pct(v) for k, v in bucket_tot.items()}
+
+    print("Presence exposures:")
+    for key, target in targets.get("presence_targets_pct", {}).items():
+        print(f"  {key}: {presence_pct.get(key, 0):.1%} (target {target:.1%})")
+
+    print("Multiplicity exposures:")
+    for key, target in targets.get("multiplicity_targets_mean", {}).items():
+        print(f"  {key}: {mult_pct.get(key, 0):.2f} (target {target:.2f})")
+
+    print("Bucket mix:")
+    for key, target in targets.get("bucket_mix_pct", {}).items():
+        print(f"  {key}: {bucket_pct.get(key, 0):.1%} (target {target:.1%})")
+
+    return {
+        "presence": presence_pct,
+        "multiplicity": mult_pct,
+        "bucket": bucket_pct,
+    }
 
