@@ -991,66 +991,26 @@ class NFL_Optimizer:
                 ceil = sum([self.player_dict[player]["Ceiling"] for player in x])
                 stddev = sum([self.player_dict[player]["StdDev"] for player in x])
                 if self.site == "dk":
-                    lineup_str = "{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{} ({}),{},{},{},{},{},{},{},{}".format(
-                        self.player_dict[x[0]]["Name"],
-                        self.player_dict[x[0]]["ID"],
-                        self.player_dict[x[1]]["Name"],
-                        self.player_dict[x[1]]["ID"],
-                        self.player_dict[x[2]]["Name"],
-                        self.player_dict[x[2]]["ID"],
-                        self.player_dict[x[3]]["Name"],
-                        self.player_dict[x[3]]["ID"],
-                        self.player_dict[x[4]]["Name"],
-                        self.player_dict[x[4]]["ID"],
-                        self.player_dict[x[5]]["Name"],
-                        self.player_dict[x[5]]["ID"],
-                        self.player_dict[x[6]]["Name"],
-                        self.player_dict[x[6]]["ID"],
-                        self.player_dict[x[7]]["Name"],
-                        self.player_dict[x[7]]["ID"],
-                        self.player_dict[x[8]]["Name"],
-                        self.player_dict[x[8]]["ID"],
-                        salary,
-                        round(fpts_p, 2),
-                        round(fpts_used, 2),
-                        round(act_p, 2),
-                        ceil,
-                        own_s,
-                        own_p,
-                        stddev,
-                        stack_str,
-                    )
+                    player_fields = [
+                        f"{self.player_dict[p]['Name']} ({self.player_dict[p]['ID']})" for p in x
+                    ]
                 else:
-                    lineup_str = "{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{}:{},{},{},{},{},{},{},{},{}".format(
-                        self.player_dict[x[0]]["ID"],
-                        self.player_dict[x[0]]["Name"],
-                        self.player_dict[x[1]]["ID"],
-                        self.player_dict[x[1]]["Name"],
-                        self.player_dict[x[2]]["ID"],
-                        self.player_dict[x[2]]["Name"],
-                        self.player_dict[x[3]]["ID"],
-                        self.player_dict[x[3]]["Name"],
-                        self.player_dict[x[4]]["ID"],
-                        self.player_dict[x[4]]["Name"],
-                        self.player_dict[x[5]]["ID"],
-                        self.player_dict[x[5]]["Name"],
-                        self.player_dict[x[6]]["ID"],
-                        self.player_dict[x[6]]["Name"],
-                        self.player_dict[x[7]]["ID"],
-                        self.player_dict[x[7]]["Name"],
-                        self.player_dict[x[8]]["ID"],
-                        self.player_dict[x[8]]["Name"],
-                        salary,
-                        round(fpts_p, 2),
-                        round(fpts_used, 2),
-                        round(act_p, 2),
-                        ceil,
-                        own_s,
-                        own_p,
-                        stddev,
-                        stack_str,
-                    )
-                f.write("%s\n" % lineup_str)
+                    player_fields = [
+                        f"{self.player_dict[p]['ID']}:{self.player_dict[p]['Name']}" for p in x
+                    ]
+                fields = player_fields + [
+                    salary,
+                    round(fpts_p, 2),
+                    round(fpts_used, 2),
+                    round(act_p, 2),
+                    ceil,
+                    own_s,
+                    own_p,
+                    stddev,
+                    stack_str,
+                ]
+                lineup_str = ",".join(map(str, fields))
+                f.write(f"{lineup_str}\n")
 
         print("Output done.")
         return out_path
