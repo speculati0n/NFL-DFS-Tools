@@ -2,6 +2,7 @@ from typing import List, Dict
 from collections import defaultdict, Counter
 
 
+
 from stack_metrics import analyze_lineup
 
 
@@ -96,7 +97,7 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
         Mapping of player keys to player info.
     targets : dict
         Exposure targets from config (presence, multiplicity and bucket).
-    """
+
 
     presence_tot = Counter()
     mult_tot = Counter()
