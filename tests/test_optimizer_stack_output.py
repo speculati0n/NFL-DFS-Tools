@@ -9,7 +9,7 @@ from nfl_optimizer import NFL_Optimizer
 def test_output_includes_players_vs_dst_column():
     opt = NFL_Optimizer(site="dk", num_lineups=1, num_uniques=1)
     opt.optimize()
-    path = opt.output()
+    path, _ = opt.output()
     with open(path) as f:
         rows = list(csv.reader(f))
     assert rows[0][-2] == "Players vs DST"
