@@ -12,18 +12,22 @@ from random import shuffle, choice
 from collections import Counter
 
 from utils import get_data_path, get_config_path
+from selection_exposures import select_lineups
+from stack_metrics import analyze_lineup
 
 
 class NFL_Optimizer:
     team_rename_dict = {"LA": "LAR"}
 
-    def __init__(self, site=None, num_lineups=0, num_uniques=1):
+    def __init__(self, site=None, num_lineups=0, num_uniques=1, profile=None, pool_factor: float = 5.0):
         self.site = site
         self.config = None
         self.problem = None
         self.output_dir = None
         self.num_lineups = int(num_lineups)
         self.num_uniques = int(num_uniques)
+        self.profile = profile
+        self.pool_factor = float(pool_factor)
         # Instance-specific containers; these previously lived on the class
         # and caused state to leak across optimizer runs, requiring an app
         # restart after each optimization.
@@ -858,7 +862,8 @@ class NFL_Optimizer:
         )
 
         # Crunch!
-        for i in range(self.num_lineups):
+        num_pool = max(int(self.num_lineups * self.pool_factor), self.num_lineups)
+        for i in range(num_pool):
             try:
                 self.problem.solve(plp.PULP_CBC_CMD(msg=0))
             except plp.PulpSolverError:
@@ -909,6 +914,50 @@ class NFL_Optimizer:
                     ),
                     "Objective",
                 )
+
+        if self.profile:
+            profiles = self.config.get("profiles", {})
+            prof = profiles.get(self.profile)
+            if prof:
+                targets = {
+                    "presence_targets_pct": prof.get("presence_targets_pct", {}),
+                    "multiplicity_targets_mean": prof.get("multiplicity_targets_mean", {}),
+                    "bucket_mix_pct": prof.get("bucket_mix_pct", {}),
+                }
+                candidate_players = [players for players, _ in self.lineups]
+                selected_players = select_lineups(
+                    candidate_players, self.player_dict, targets, self.num_lineups
+                )
+                selected_set = {tuple(lp) for lp in selected_players}
+                self.lineups = [
+                    (players, fpts)
+                    for (players, fpts) in self.lineups
+                    if tuple(players) in selected_set
+                ]
+                presence_tot = Counter()
+                mult_tot = Counter()
+                bucket_tot = Counter()
+                for lineup in selected_players:
+                    metrics = analyze_lineup(lineup, self.player_dict)
+                    presence_tot.update(metrics["presence"])
+                    mult_tot.update(metrics["counts"])
+                    bucket_tot[metrics["bucket"]] += 1
+                n = len(selected_players)
+                print("Exposure Results:")
+                for k, t in targets.get("presence_targets_pct", {}).items():
+                    ach = presence_tot.get(k, 0) / n if n else 0
+                    print(f"Presence {k}: {ach:.2f} (target {t:.2f})")
+                for k, t in targets.get("multiplicity_targets_mean", {}).items():
+                    ach = mult_tot.get(k, 0) / n if n else 0
+                    print(f"Multiplicity {k}: {ach:.2f} (target {t:.2f})")
+                for k, t in targets.get("bucket_mix_pct", {}).items():
+                    ach = bucket_tot.get(k, 0) / n if n else 0
+                    print(f"Bucket {k}: {ach:.2f} (target {t:.2f})")
+            else:
+                print(f"Warning: profile {self.profile} not found in config")
+        else:
+            # truncate pool to requested number of lineups
+            self.lineups = self.lineups[: self.num_lineups]
 
     def output(self):
         print("Lineups done generating. Outputting.")
