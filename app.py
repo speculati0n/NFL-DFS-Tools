@@ -68,7 +68,7 @@ def optimize():
         total = opto.num_lineups
     else:
         opto = NFL_Optimizer(site, num_lineups, num_uniques)
-
+        total = max(int(opto.num_lineups * opto.pool_factor), opto.num_lineups)
 
     progress_data.update({'current': 0, 'total': total, 'percent': 0, 'status': 'running', 'output_path': None})
 

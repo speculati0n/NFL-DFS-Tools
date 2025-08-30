@@ -886,6 +886,7 @@ class NFL_Optimizer:
             self.lineups.append((players, fpts_used))
 
             progress = i + 1
+            percent = (progress / num_pool) * 100
 
 
 
