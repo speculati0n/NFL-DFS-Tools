@@ -975,9 +975,11 @@ class NFL_Optimizer:
         )
         out_path = os.path.join(os.path.dirname(__file__), filename_out)
         with open(out_path, "w") as f:
-            f.write(
-                "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Fpts Used,Fpts Act,Ceiling,Own. Sum,Own. Product,STDDEV,Stack\n"
+            header = (
+                "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Fpts Used,Fpts Act,Ceiling,"
+                "Own. Sum,Own. Product,STDDEV,Players vs DST,Stack\n"
             )
+            f.write(header)
             for x, fpts_used in sorted_lineups:
                 stack_str = self.construct_stack_string(x)
 
@@ -990,6 +992,19 @@ class NFL_Optimizer:
                 )
                 ceil = sum([self.player_dict[player]["Ceiling"] for player in x])
                 stddev = sum([self.player_dict[player]["StdDev"] for player in x])
+
+                dst_opponents = {
+                    self.player_dict[p].get("Opponent")
+                    for p in x
+                    if self.player_dict[p]["Position"] == "DST"
+                    and self.player_dict[p].get("Opponent")
+                }
+                players_vs_def = sum(
+                    1
+                    for p in x
+                    if self.player_dict[p]["Position"] != "DST"
+                    and self.player_dict[p].get("Team") in dst_opponents
+                )
                 if self.site == "dk":
                     player_fields = [
                         f"{self.player_dict[p]['Name']} ({self.player_dict[p]['ID']})" for p in x
@@ -1007,6 +1022,7 @@ class NFL_Optimizer:
                     own_s,
                     own_p,
                     stddev,
+                    players_vs_def,
                     stack_str,
                 ]
                 lineup_str = ",".join(map(str, fields))
