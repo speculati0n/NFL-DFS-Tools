@@ -1411,7 +1411,56 @@ class NFL_GPP_Simulator:
                 # print(sum(in_lineup), stack_len)
                 for ix, (l, pos) in enumerate(zip(lineup, pos_matrix.T)):
                     if l == "0.0":
-                        if k < 1:
+                        if ix == 0:
+                            valid_players = np.nonzero(
+                                (pos > 0)
+                                & (in_lineup == 0)
+                                & (teams != team_stack)
+                                & (opponents != team_stack)
+                            )[0]
+                            if valid_players.size == 0:
+                                valid_players = np.nonzero(
+                                    (pos > 0) & (in_lineup == 0)
+                                )[0]
+                            plyr_list = ids[valid_players]
+                            prob_list = ownership[valid_players]
+                            prob_list = prob_list / prob_list.sum()
+                            try:
+                                choice = rng.choice(plyr_list, p=prob_list)
+                            except:
+                                print("find failed on stack DST selection")
+                            choice_idx = np.nonzero(ids == choice)[0]
+                            in_lineup[choice_idx] = 1
+                            try:
+                                lineup[ix] = str(choice)
+                            except IndexError:
+                                print(lineup, choice, ix)
+                            salary += salaries[choice_idx]
+                            proj += projections[choice_idx]
+                            def_opp = opponents[choice_idx][0]
+                            lineup_matchups.append(matchups[choice_idx[0]])
+                            player_teams.append(teams[choice_idx][0])
+                            players_opposing_def = sum(
+                                1 for team in player_teams if team == def_opp
+                            )
+                            if players_opposing_def > overlap_limit:
+                                salary = 0
+                                proj = 0
+                                if team_stack == "":
+                                    lineup = []
+                                else:
+                                    lineup = np.zeros(
+                                        shape=pos_matrix.shape[1]
+                                    ).astype(str)
+                                player_teams = []
+                                def_opps = []
+                                players_opposing_def = 0
+                                lineup_matchups = []
+                                in_lineup.fill(0)
+                                k = 0
+                                continue
+                            continue
+                        elif k < 1:
                             if require_bring_back:
                                 valid_players = np.nonzero(
                                     (pos > 0)
