@@ -1,7 +1,7 @@
 from typing import List, Dict
 from collections import defaultdict, Counter
 
-import pandas as pd
+
 
 from stack_metrics import analyze_lineup
 
@@ -87,10 +87,7 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
     return [candidates[i] for i in selected]
 
 
-def report_lineup_exposures(
-    lineups: List[List[str]], player_dict: Dict, targets: Dict
-) -> pd.DataFrame:
-    '''Print and return a summary comparing achieved stack percentages to targets.
+
 
     Parameters
     ----------
@@ -100,7 +97,7 @@ def report_lineup_exposures(
         Mapping of player keys to player info.
     targets : dict
         Exposure targets from config (presence, multiplicity and bucket).
-    '''
+
 
     presence_tot = Counter()
     mult_tot = Counter()
@@ -112,23 +109,4 @@ def report_lineup_exposures(
         bucket_tot[metrics["bucket"]] += 1
     n = len(lineups)
 
-    rows = []
-    for k, t in targets.get("presence_targets_pct", {}).items():
-        ach = presence_tot.get(k, 0) / n if n else 0
-        rows.append(("Presence", k, ach, t))
-    for k, t in targets.get("multiplicity_targets_mean", {}).items():
-        ach = mult_tot.get(k, 0) / n if n else 0
-        rows.append(("Multiplicity", k, ach, t))
-    for k, t in targets.get("bucket_mix_pct", {}).items():
-        ach = bucket_tot.get(k, 0) / n if n else 0
-        rows.append(("Bucket", k, ach, t))
 
-    df = pd.DataFrame(rows, columns=["Type", "Stack", "Achieved", "Target"])
-
-    if not df.empty:
-        print("Stack Exposure:")
-        print(df.to_string(index=False, formatters={"Achieved": "{:.2f}".format, "Target": "{:.2f}".format}))
-    else:
-        print("No exposure targets provided")
-
-    return df

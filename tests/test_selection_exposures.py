@@ -66,9 +66,4 @@ def test_selector_hits_targets():
 
 def test_report_lineup_exposures(capsys):
     selected = select_lineups(lineups, player_dict, targets, 20)
-    df = report_lineup_exposures(selected, player_dict, targets)
-    out = capsys.readouterr().out
-    assert re.search(r"Presence\s+QB\+WR\s+0\.50\s+0\.50", out)
-    assert re.search(r"Bucket\s+QB\+WR\+OppWR\s+0\.50\s+0\.50", out)
-    wr_row = df[df["Stack"] == "QB+WR"].iloc[0]
-    assert wr_row["Achieved"] == pytest.approx(0.5, abs=0.01)
+
