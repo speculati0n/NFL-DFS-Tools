@@ -2359,6 +2359,15 @@ class NFL_GPP_Simulator:
                         continue
 
 
+            # Analyze stacking metrics for the current lineup. ``analyze_lineup``
+            # expects a list of player IDs and a dictionary keyed by those IDs.
+            # ``id_player_dict`` was created above for this purpose. The function
+            # returns information about stack presence and counts, which is used
+            # to build the ``primaryStack`` string below. Previously ``metrics``
+            # was referenced without being defined, resulting in a ``NameError``
+            # when this method was executed.
+            metrics = analyze_lineup(x["Lineup"], id_player_dict)
+
             stack_parts = []
             for k, v in metrics["counts"].items():
                 if v > 0 and k != "No Stack":
