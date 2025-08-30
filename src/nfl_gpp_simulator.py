@@ -1923,9 +1923,7 @@ class NFL_GPP_Simulator:
             selected = select_lineups(
                 candidates, self.player_dict, self.targets, self.field_size
             )
-            self.stack_exposure_df = report_lineup_exposures(
-                selected, self.player_dict, self.targets
-            )
+
             self.field_lineups = {}
             self.seen_lineups = {}
             self.seen_lineups_ix = {}

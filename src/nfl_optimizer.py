@@ -936,9 +936,7 @@ class NFL_Optimizer:
                     for (players, fpts) in self.lineups
                     if tuple(players) in selected_set
                 ]
-                self.stack_exposure_df = report_lineup_exposures(
-                    selected_players, self.player_dict, targets
-                )
+
             else:
                 print(f"Warning: profile {self.profile} not found in config")
         else:
