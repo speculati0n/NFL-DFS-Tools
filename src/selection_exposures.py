@@ -1,5 +1,5 @@
 from typing import List, Dict
-from collections import defaultdict
+from collections import defaultdict, Counter
 from stack_metrics import analyze_lineup
 
 
@@ -82,3 +82,38 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
         remaining.remove(best_idx)
 
     return [candidates[i] for i in selected]
+
+
+def report_lineup_exposures(lineups: List[List[str]], player_dict: Dict, targets: Dict) -> None:
+    """Print a summary comparing achieved stack percentages to targets.
+
+    Parameters
+    ----------
+    lineups : list of lineups
+        Each lineup is a list of player keys.
+    player_dict : dict
+        Mapping of player keys to player info.
+    targets : dict
+        Exposure targets from config (presence, multiplicity and bucket).
+    """
+
+    presence_tot = Counter()
+    mult_tot = Counter()
+    bucket_tot = Counter()
+    for lu in lineups:
+        metrics = analyze_lineup(lu, player_dict)
+        presence_tot.update(metrics["presence"])
+        mult_tot.update(metrics["counts"])
+        bucket_tot[metrics["bucket"]] += 1
+    n = len(lineups)
+
+    print("Exposure Results:")
+    for k, t in targets.get("presence_targets_pct", {}).items():
+        ach = presence_tot.get(k, 0) / n if n else 0
+        print(f"Presence {k}: {ach:.2f} (target {t:.2f})")
+    for k, t in targets.get("multiplicity_targets_mean", {}).items():
+        ach = mult_tot.get(k, 0) / n if n else 0
+        print(f"Multiplicity {k}: {ach:.2f} (target {t:.2f})")
+    for k, t in targets.get("bucket_mix_pct", {}).items():
+        ach = bucket_tot.get(k, 0) / n if n else 0
+        print(f"Bucket {k}: {ach:.2f} (target {t:.2f})")
