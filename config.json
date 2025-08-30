@@ -13,10 +13,13 @@
     "num_players_vs_def" : 0,
     "pct_field_using_stacks" : 0.65, 
     "pct_field_double_stacks": 0.4,
-    "default_qb_var" : 0.4, 
-    "default_skillpos_var" : 0.5, 
+    "default_qb_var" : 0.4,
+    "default_skillpos_var" : 0.5,
     "default_def_var" : 0.5,
     "allow_qb_vs_dst": false,
+    "allow_qb_double_stack": false,
+    "allow_qb_rb_stack": false,
+    "allow_rb_wr_same_team": false,
     "at_most": {
         "1": []
     },
