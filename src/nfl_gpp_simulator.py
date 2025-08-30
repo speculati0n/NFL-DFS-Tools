@@ -2329,10 +2329,22 @@ class NFL_GPP_Simulator:
         if not self.field_lineups:
             self.generate_field_lineups()
 
-        id_player_dict = {
-            v["ID"]: {**v, "Opponent": v.get("Opp")}
-            for v in self.player_dict.values()
-        }
+        id_player_dict = {}
+        for v in self.player_dict.values():
+            # ``analyze_lineup`` expects the player dictionary to be keyed by
+            # player ID with ``Position`` stored as a simple string.  The
+            # simulator keeps positions as a list (e.g. ["WR", "FLEX"]) which
+            # caused all lookups to fail and every lineup to appear as
+            # ``No Stack``.  Convert the position list to its primary element
+            # here so stack detection mirrors the optimiser.
+            pos = v.get("Position")
+            if isinstance(pos, list):
+                pos = pos[0]
+            id_player_dict[v["ID"]] = {
+                **v,
+                "Position": pos,
+                "Opponent": v.get("Opp"),
+            }
         unique = {}
         for index, x in self.field_lineups.items():
             # if index == 0:
@@ -2380,17 +2392,30 @@ class NFL_GPP_Simulator:
             # when this method was executed.
             metrics = analyze_lineup(x["Lineup"], id_player_dict)
 
-            stack_parts = []
-            for k, v in metrics["counts"].items():
-                if v > 0 and k != "No Stack":
-                    if v > 1:
-                        stack_parts.append(f"{k} x{v}")
-                    else:
-                        stack_parts.append(k)
-            if not stack_parts and metrics["presence"].get("No Stack"):
-                stack_parts.append("No Stack")
-            primaryStack = " ; ".join(stack_parts)
-            secondaryStack = ""
+            # Determine the primary and secondary stack types.  ``analyze_lineup``
+            # returns counts for each stack; pick the top two (excluding the
+            # "No Stack" placeholder) so that the simulator output mirrors the
+            # optimiser's stack columns.
+            stack_items = [
+                (k, v)
+                for k, v in metrics["counts"].items()
+                if v > 0 and k != "No Stack"
+            ]
+            stack_items.sort(key=lambda kv: kv[1], reverse=True)
+
+            def _fmt(item):
+                name, count = item
+                return f"{name} x{count}" if count > 1 else name
+
+            if stack_items:
+                primaryStack = _fmt(stack_items[0])
+                secondaryStack = _fmt(stack_items[1]) if len(stack_items) > 1 else ""
+            elif metrics["presence"].get("No Stack"):
+                primaryStack = "No Stack"
+                secondaryStack = ""
+            else:
+                primaryStack = ""
+                secondaryStack = ""
             own_p = np.prod(own_p)
             win_p = round(x["Wins"] / self.num_iterations * 100, 2)
             top10_p = round(x["Top1Percent"] / self.num_iterations * 100, 2)
