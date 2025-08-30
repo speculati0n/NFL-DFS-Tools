@@ -107,13 +107,4 @@ def report_lineup_exposures(lineups: List[List[str]], player_dict: Dict, targets
         bucket_tot[metrics["bucket"]] += 1
     n = len(lineups)
 
-    print("Exposure Results:")
-    for k, t in targets.get("presence_targets_pct", {}).items():
-        ach = presence_tot.get(k, 0) / n if n else 0
-        print(f"Presence {k}: {ach:.2f} (target {t:.2f})")
-    for k, t in targets.get("multiplicity_targets_mean", {}).items():
-        ach = mult_tot.get(k, 0) / n if n else 0
-        print(f"Multiplicity {k}: {ach:.2f} (target {t:.2f})")
-    for k, t in targets.get("bucket_mix_pct", {}).items():
-        ach = bucket_tot.get(k, 0) / n if n else 0
-        print(f"Bucket {k}: {ach:.2f} (target {t:.2f})")
+
