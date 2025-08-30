@@ -46,6 +46,9 @@ class NFL_Optimizer:
         self.default_skillpos_var = 0.5
         self.default_def_var = 0.5
         self.min_lineup_salary = 0
+        self.allow_qb_double_stack = False
+        self.allow_qb_rb_stack = False
+        self.allow_rb_wr_same_team = False
 
         self.load_config()
         self.load_rules()
@@ -140,10 +143,45 @@ class NFL_Optimizer:
         self.projection_minimum = int(self.config["projection_minimum"])
         self.randomness_amount = float(self.config["randomness"])
         self.use_double_te = bool(self.config["use_double_te"])
-        self.stack_rules = self.config["stack_rules"]
+        self.stack_rules = copy.deepcopy(self.config["stack_rules"])
         self.matchup_at_least = self.config["matchup_at_least"]
         self.matchup_limits = self.config["matchup_limits"]
         self.allow_qb_vs_dst = bool(self.config["allow_qb_vs_dst"])
+        self.allow_qb_double_stack = bool(
+            self.config.get("allow_qb_double_stack", False)
+        )
+        self.allow_qb_rb_stack = bool(
+            self.config.get("allow_qb_rb_stack", False)
+        )
+        self.allow_rb_wr_same_team = bool(
+            self.config.get("allow_rb_wr_same_team", False)
+        )
+        if not self.allow_qb_double_stack:
+            for rule in self.stack_rules.get("pair", []):
+                if (
+                    rule.get("key") == "QB"
+                    and rule.get("type") == "same-team"
+                    and set(rule.get("positions", [])) == {"WR", "TE"}
+                ):
+                    rule["count"] = 1
+        if not self.allow_qb_rb_stack:
+            self.stack_rules.setdefault("limit", []).append(
+                {
+                    "positions": ["QB", "RB"],
+                    "type": "same-team",
+                    "count": 1,
+                    "exclude_teams": [],
+                }
+            )
+        if not self.allow_rb_wr_same_team:
+            self.stack_rules.setdefault("limit", []).append(
+                {
+                    "positions": ["RB", "WR"],
+                    "type": "same-team",
+                    "count": 0,
+                    "exclude_teams": [],
+                }
+            )
         self.min_lineup_salary = int(self.config.get("min_lineup_salary", 0))
         self.default_qb_var = (
             self.config["default_qb_var"] if "default_qb_var" in self.config else 0.333
