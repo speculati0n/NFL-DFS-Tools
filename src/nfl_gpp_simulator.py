@@ -85,7 +85,8 @@ class NFL_GPP_Simulator:
         self.correlation_rules = {}
         self.seen_lineups = {}
         self.seen_lineups_ix = {}
-
+        self.use_te_stack = True
+        self.require_bring_back = True
 
         self.load_config()
         self.load_rules()
@@ -172,36 +173,12 @@ class NFL_GPP_Simulator:
         self.randomness_amount = float(self.config["randomness"])
         self.min_lineup_salary = int(self.config["min_lineup_salary"])
         self.max_pct_off_optimal = float(self.config["max_pct_off_optimal"])
-        self.lineup_strategy = self.config.get("lineup_strategy", "top_heavy")
-
-        stack_pct_cfg = self.config.get("pct_field_using_stacks", {})
-        if isinstance(stack_pct_cfg, dict):
-            self.pct_field_using_stacks = float(
-                stack_pct_cfg.get(self.lineup_strategy, 0.9)
-            )
-        else:
-            self.pct_field_using_stacks = float(stack_pct_cfg)
-
-        double_stack_cfg = self.config.get("pct_field_double_stacks", {})
-        if isinstance(double_stack_cfg, dict):
-            self.pct_field_double_stacks = float(
-                double_stack_cfg.get(self.lineup_strategy, 0.3)
-            )
-        else:
-            self.pct_field_double_stacks = float(double_stack_cfg)
-
-        te_stack_cfg = self.config.get("te_stack_pct", {})
-        if isinstance(te_stack_cfg, dict):
-            self.te_stack_pct = float(
-                te_stack_cfg.get(self.lineup_strategy, 0.3)
-            )
-        else:
-            self.te_stack_pct = float(te_stack_cfg)
-
+        self.pct_field_using_stacks = float(self.config["pct_field_using_stacks"])
         self.default_qb_var = float(self.config["default_qb_var"])
         self.default_skillpos_var = float(self.config["default_skillpos_var"])
         self.default_def_var = float(self.config["default_def_var"])
         self.overlap_limit = float(self.config["num_players_vs_def"])
+        self.pct_field_double_stacks = float(self.config["pct_field_double_stacks"])
         self.correlation_rules = self.config["custom_correlations"]
         self.use_te_stack = bool(self.config.get("use_te_stack", True))
         self.require_bring_back = bool(self.config.get("require_bring_back", True))
@@ -1002,7 +979,6 @@ class NFL_GPP_Simulator:
         opponents,
         team_stack,
         stack_len,
-        te_stack,
         overlap_limit,
         max_stack_len,
         matchups,
@@ -1364,32 +1340,11 @@ class NFL_GPP_Simulator:
                 plyr_list = ids[valid_players]
                 prob_list = ownership[valid_players]
                 prob_list = prob_list / prob_list.sum()
-                te_candidates = valid_players[pos_matrix[valid_players, 7] > 0]
                 while stack:
                     try:
-                        if te_stack and te_candidates.size > 0:
-                            te_plyr_list = ids[te_candidates]
-                            te_prob = ownership[te_candidates]
-                            te_prob = te_prob / te_prob.sum()
-                            te_choice = rng.choice(te_plyr_list, p=te_prob)
-                            remaining = valid_players[ids[valid_players] != te_choice]
-                            if stack_len > 1 and remaining.size > 0:
-                                rem_plyr_list = ids[remaining]
-                                rem_prob = ownership[remaining]
-                                rem_prob = rem_prob / rem_prob.sum()
-                                additional = rng.choice(
-                                    rem_plyr_list,
-                                    p=rem_prob,
-                                    size=stack_len - 1,
-                                    replace=False,
-                                )
-                                choices = np.concatenate(([te_choice], additional))
-                            else:
-                                choices = np.array([te_choice])
-                        else:
-                            choices = rng.choice(
-                                a=plyr_list, p=prob_list, size=stack_len, replace=False
-                            )
+                        choices = rng.choice(
+                            a=plyr_list, p=prob_list, size=stack_len, replace=False
+                        )
                         if len(set(choices)) != len(choices):
                             print(
                                 "choice dupe",
@@ -1801,7 +1756,6 @@ class NFL_GPP_Simulator:
                 p=[1 - self.pct_field_double_stacks, self.pct_field_double_stacks],
                 size=diff,
             )
-            te_stack = np.random.binomial(n=1, p=self.te_stack_pct, size=diff)
             max_stack_len = 2
             num_players_in_roster = len(self.roster_construction)
             a = list(self.stacks_dict.keys())
@@ -1832,7 +1786,6 @@ class NFL_GPP_Simulator:
                     opponents,
                     stacks[i],
                     stack_len[i],
-                    te_stack[i],
                     overlap_limit,
                     max_stack_len,
                     matchups,
