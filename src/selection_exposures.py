@@ -107,24 +107,4 @@ def report_lineup_exposures(lineups: List[List[str]], player_dict: Dict, targets
         bucket_tot[metrics["bucket"]] += 1
     n = len(lineups)
 
-    rows = []
-    for k, t in targets.get("presence_targets_pct", {}).items():
-        ach = presence_tot.get(k, 0) / n if n else 0
-        rows.append(("Presence", k, ach, t))
-    for k, t in targets.get("multiplicity_targets_mean", {}).items():
-        ach = mult_tot.get(k, 0) / n if n else 0
-        rows.append(("Multiplicity", k, ach, t))
-    for k, t in targets.get("bucket_mix_pct", {}).items():
-        ach = bucket_tot.get(k, 0) / n if n else 0
-        rows.append(("Bucket", k, ach, t))
 
-    print("Exposure Results:")
-    if rows:
-        col1 = max(len("Type"), max(len(r[0]) for r in rows))
-        col2 = max(len("Stack"), max(len(r[1]) for r in rows))
-        header = f"{'Type':<{col1}} {'Stack':<{col2}} {'Achieved':>8} {'Target':>8}"
-        print(header)
-        for typ, stack, ach, tgt in rows:
-            print(f"{typ:<{col1}} {stack:<{col2}} {ach:>8.2f} {tgt:>8.2f}")
-    else:
-        print("No exposure targets provided")
