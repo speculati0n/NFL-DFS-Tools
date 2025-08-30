@@ -1,6 +1,7 @@
 from typing import List, Dict
 from collections import defaultdict, Counter
 
+
 from stack_metrics import analyze_lineup
 
 
@@ -106,4 +107,5 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
         mult_tot.update(metrics["counts"])
         bucket_tot[metrics["bucket"]] += 1
     n = len(lineups)
+
 
