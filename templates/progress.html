@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Optimization Progress</title>
+    <script>
+      async function poll() {
+        const res = await fetch('/progress');
+        const data = await res.json();
+        document.getElementById('status').innerText = `${data.current}/${data.total} ${data.percent}%`;
+        if (data.status === 'done') {
+          window.location.href = '/results';
+        } else {
+          setTimeout(poll, 1000);
+        }
+      }
+      window.onload = poll;
+    </script>
+  </head>
+  <body>
+    <h1>Generating Lineups...</h1>
+    <div id="status">0/0 0%</div>
+    <a href="/">Back</a>
+  </body>
+</html>

@@ -1,7 +1,8 @@
 import os
 import shutil
+import threading
 import pandas as pd
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, jsonify
 from src.nfl_optimizer import NFL_Optimizer
 from src.nfl_showdown_optimizer import NFL_Showdown_Optimizer
 from src.nfl_gpp_simulator import NFL_GPP_Simulator
@@ -10,6 +11,25 @@ from src.nfl_showdown_simulator import NFL_Showdown_Simulator
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
+progress_data = {"current": 0, "total": 0, "percent": 0, "status": "idle", "output_path": None}
+
+
+def update_progress(current, total):
+    progress_data["current"] = current
+    progress_data["total"] = total
+    progress_data["percent"] = int((current / total) * 100)
+
+
+def run_optimizer(opto, site, save_lineups):
+    opto.optimize(progress_callback=update_progress)
+    output_path = opto.output()
+    if save_lineups:
+        dest_dir = os.path.join(UPLOAD_DIR, site)
+        os.makedirs(dest_dir, exist_ok=True)
+        shutil.copy(output_path, os.path.join(dest_dir, "tournament_lineups.csv"))
+    progress_data["output_path"] = output_path
+    progress_data["status"] = "done"
 
 @app.route('/')
 def index():
@@ -45,18 +65,17 @@ def optimize():
 
     if mode == 'showdown':
         opto = NFL_Showdown_Optimizer(site, num_lineups, num_uniques)
+        total = opto.num_lineups
     else:
         opto = NFL_Optimizer(site, num_lineups, num_uniques)
-    opto.optimize()
-    output_path = opto.output()
-    if save_lineups:
-        dest_dir = os.path.join(UPLOAD_DIR, site)
-        os.makedirs(dest_dir, exist_ok=True)
-        shutil.copy(output_path, os.path.join(dest_dir, 'tournament_lineups.csv'))
-    # Only load the first 1000 lineups for display to avoid rendering huge tables
-    df = pd.read_csv(output_path, nrows=1000)
-    tables = [("Lineups (first 1000)", df.to_html(index=False))]
-    return render_template('results.html', title='Optimization Results', tables=tables)
+        total = max(int(opto.num_lineups * opto.pool_factor), opto.num_lineups)
+
+    progress_data.update({'current': 0, 'total': total, 'percent': 0, 'status': 'running', 'output_path': None})
+
+    thread = threading.Thread(target=run_optimizer, args=(opto, site, save_lineups))
+    thread.start()
+
+    return render_template('progress.html')
 
 @app.route('/simulate', methods=['POST'])
 def simulate():
@@ -96,6 +115,20 @@ def reset():
     if os.path.exists(config_path):
         os.remove(config_path)
     return redirect('/')
+
+
+@app.route('/progress')
+def progress():
+    return jsonify(progress_data)
+
+
+@app.route('/results')
+def results():
+    if not progress_data.get('output_path'):
+        return redirect('/')
+    df = pd.read_csv(progress_data['output_path'], nrows=1000)
+    tables = [("Lineups (first 1000)", df.to_html(index=False))]
+    return render_template('results.html', title='Optimization Results', tables=tables)
 
 if __name__ == '__main__':
     app.run(debug=True)
