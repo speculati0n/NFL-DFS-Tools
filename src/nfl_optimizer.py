@@ -40,6 +40,8 @@ class NFL_Optimizer:
         self.stack_rules = {}
         self.global_team_limit = None
         self.use_double_te = True
+        self.use_te_stack = True
+        self.require_bring_back = True
         self.projection_minimum = 0
         self.randomness_amount = 0
         self.default_qb_var = 0.4
@@ -140,7 +142,21 @@ class NFL_Optimizer:
         self.projection_minimum = int(self.config["projection_minimum"])
         self.randomness_amount = float(self.config["randomness"])
         self.use_double_te = bool(self.config["use_double_te"])
-        self.stack_rules = self.config["stack_rules"]
+        self.use_te_stack = bool(self.config.get("use_te_stack", True))
+        self.require_bring_back = bool(self.config.get("require_bring_back", True))
+        self.stack_rules = copy.deepcopy(self.config["stack_rules"])
+        if not self.use_te_stack:
+            for rule in self.stack_rules.get("pair", []):
+                if rule.get("key") == "QB" and rule.get("type") == "same-team":
+                    rule["positions"] = [
+                        pos for pos in rule.get("positions", []) if pos != "TE"
+                    ]
+        if not self.require_bring_back:
+            self.stack_rules["pair"] = [
+                r
+                for r in self.stack_rules.get("pair", [])
+                if r.get("type") != "opp-team"
+            ]
         self.matchup_at_least = self.config["matchup_at_least"]
         self.matchup_limits = self.config["matchup_limits"]
         self.allow_qb_vs_dst = bool(self.config["allow_qb_vs_dst"])
