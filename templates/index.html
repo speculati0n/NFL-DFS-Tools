@@ -30,7 +30,7 @@
     </form>
 
     <h2>Optimize Lineups</h2>
-    <form action="/optimize" method="post">
+    <form id="optimize-form" action="/optimize" method="post">
       <label>Site:</label>
       <input name="site" placeholder="dk or fd" required><br>
       <label>Number of Lineups:</label>
@@ -45,6 +45,11 @@
       <label><input type="checkbox" name="save_lineups"> Save lineups for simulator</label><br>
       <button type="submit">Run Optimizer</button>
     </form>
+
+    <div id="progress" style="display:none;">
+      <h3>Generating Lineups...</h3>
+      <div id="progress-status">0/0 0%</div>
+    </div>
 
     <h2>Simulate Tournament</h2>
     <form action="/simulate" method="post">
@@ -63,5 +68,24 @@
       <label><input type="checkbox" name="use_lineup_input"> Use saved lineups</label><br>
       <button type="submit">Run Simulation</button>
     </form>
+    <script>
+      document.getElementById('optimize-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        await fetch('/optimize', {method: 'POST', body: formData});
+        document.getElementById('progress').style.display = 'block';
+        poll();
+      });
+      async function poll() {
+        const res = await fetch('/progress');
+        const data = await res.json();
+        document.getElementById('progress-status').innerText = `${data.current}/${data.total} ${data.percent}%`;
+        if (data.status === 'done') {
+          window.location.href = '/results';
+        } else {
+          setTimeout(poll, 1000);
+        }
+      }
+    </script>
   </body>
 </html>

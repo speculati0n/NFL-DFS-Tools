@@ -75,7 +75,7 @@ def optimize():
     thread = threading.Thread(target=run_optimizer, args=(opto, site, save_lineups))
     thread.start()
 
-    return render_template('progress.html')
+
 
 @app.route('/simulate', methods=['POST'])
 def simulate():
