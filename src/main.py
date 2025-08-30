@@ -67,14 +67,18 @@ with st.form("optimize"):
         else:
             opto = NFL_Optimizer(site_opt, num_lineups, num_uniques)
         opto.optimize()
-        output_path = opto.output()
+        lineup_path, stack_path = opto.output()
         if save_lineups:
             dest_dir = os.path.join(UPLOAD_DIR, site_opt)
             os.makedirs(dest_dir, exist_ok=True)
-            shutil.copy(output_path, os.path.join(dest_dir, "tournament_lineups.csv"))
-        df = pd.read_csv(output_path)
+            shutil.copy(lineup_path, os.path.join(dest_dir, "tournament_lineups.csv"))
+        df = pd.read_csv(lineup_path)
         st.subheader("Lineups")
         st.dataframe(df)
+        if stack_path:
+            stack_df = pd.read_csv(stack_path)
+            st.subheader("Stack Exposure")
+            st.dataframe(stack_df)
 
 # Simulation section
 st.header("Simulate Tournament")
