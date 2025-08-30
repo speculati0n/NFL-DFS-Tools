@@ -88,6 +88,19 @@ The image below shows what the shell/terminal should look like when executing th
 
 ![Example usage](readme_images/usage.png)
 
+### Stack Profiles
+
+The optimizer can steer final lineups toward profile-driven stack exposures. Use the `--profile` and `--pool-factor` flags when running the CLI:
+
+```
+# consistency build (mirror the field, slight TE bump)
+python -m src.cli dk opto --profile top10_consistency --pool-factor 5.0
+# ceiling build (TE-heavy, double+bring-back spice)
+python -m src.cli dk opto --profile top1_ceiling --pool-factor 6.0
+# simulator usage (shape the field with a profile)
+python -m src.cli dk sim 10000 1000 --profile top10_consistency --pool-factor 5.0
+```
+
 ## Config
 
 In the base directory, you will find `sample.config.json`, which has a few template options for you to limit players from teams, and make groups of players you want a limit on. This is just meant to show you how you structure rules in this optimizer. When you're ready, copy this file and rename it to `config.json`. Note that you cannot have comments in this file and it must be properly formatted. If you're on windows, be sure you are renaming the entire file to `config.json` and not `config.json.json`. This can happen if you don't have file name extensions visible. To fix this, in your windows file explorer, go to the "View" tab up top, and tick the box that says "File name extensions".
