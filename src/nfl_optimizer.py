@@ -886,10 +886,7 @@ class NFL_Optimizer:
             self.lineups.append((players, fpts_used))
 
             progress = i + 1
-            percent = (progress / num_pool) * 100
-            print(
-                f"Generated lineup {progress}/{num_pool} ({percent:.2f}% complete)"
-            )
+
 
 
             # Ensure this lineup isn't picked again
