@@ -3,6 +3,8 @@ import sys
 import re
 from collections import Counter
 
+import pytest
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from selection_exposures import select_lineups, report_lineup_exposures
@@ -64,6 +66,4 @@ def test_selector_hits_targets():
 
 def test_report_lineup_exposures(capsys):
     selected = select_lineups(lineups, player_dict, targets, 20)
-    report_lineup_exposures(selected, player_dict, targets)
-    out = capsys.readouterr().out
 

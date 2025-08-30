@@ -94,6 +94,7 @@ class NFL_GPP_Simulator:
         self.profile = profile
         self.pool_factor = pool_factor
         self.targets = {}
+        self.stack_exposure_df = None
 
         self.load_config()
         self.load_rules()
@@ -1922,7 +1923,7 @@ class NFL_GPP_Simulator:
             selected = select_lineups(
                 candidates, self.player_dict, self.targets, self.field_size
             )
-            report_lineup_exposures(selected, self.player_dict, self.targets)
+
             self.field_lineups = {}
             self.seen_lineups = {}
             self.seen_lineups_ix = {}
@@ -2645,7 +2646,9 @@ class NFL_GPP_Simulator:
             for player, data in unique_players.items():
                 field_p = round(data["In"] / self.field_size * 100, 2)
                 win_p = round(data["Wins"] / self.num_iterations * 100, 2)
-                top10_p = round(data["Top1Percent"] / top1PercentCount / self.num_iterations  * 100, 2)
+                top10_p = round(
+                    data["Top1Percent"] / top1PercentCount / self.num_iterations * 100, 2
+                )
                 roi_p = round(data["ROI"] / data["In"] / self.num_iterations, 2)
                 for k, v in self.player_dict.items():
                     if player == v["ID"]:
@@ -2669,4 +2672,14 @@ class NFL_GPP_Simulator:
                     )
                 )
 
-        return lineups_path, exposure_path
+        stack_path = None
+        if self.stack_exposure_df is not None:
+            stack_path = os.path.join(
+                os.path.dirname(__file__),
+                "../output/{}_gpp_sim_stack_exposure_{}_{}.csv".format(
+                    self.site, self.field_size, self.num_iterations
+                ),
+            )
+            self.stack_exposure_df.to_csv(stack_path, index=False)
+
+        return lineups_path, exposure_path, stack_path

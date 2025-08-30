@@ -1,5 +1,6 @@
 from typing import List, Dict
 from collections import defaultdict, Counter
+
 from stack_metrics import analyze_lineup
 
 
@@ -84,8 +85,7 @@ def select_lineups(candidates: List[List[str]], player_dict: Dict, targets: Dict
     return [candidates[i] for i in selected]
 
 
-def report_lineup_exposures(lineups: List[List[str]], player_dict: Dict, targets: Dict) -> None:
-    """Print a summary comparing achieved stack percentages to targets.
+
 
     Parameters
     ----------
@@ -106,5 +106,4 @@ def report_lineup_exposures(lineups: List[List[str]], player_dict: Dict, targets
         mult_tot.update(metrics["counts"])
         bucket_tot[metrics["bucket"]] += 1
     n = len(lineups)
-
 

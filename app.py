@@ -23,12 +23,13 @@ def update_progress(current, total):
 
 def run_optimizer(opto, site, save_lineups):
     opto.optimize(progress_callback=update_progress)
-    output_path = opto.output()
+    lineup_path, stack_path = opto.output()
     if save_lineups:
         dest_dir = os.path.join(UPLOAD_DIR, site)
         os.makedirs(dest_dir, exist_ok=True)
-        shutil.copy(output_path, os.path.join(dest_dir, "tournament_lineups.csv"))
-    progress_data["output_path"] = output_path
+        shutil.copy(lineup_path, os.path.join(dest_dir, "tournament_lineups.csv"))
+    progress_data["output_path"] = lineup_path
+    progress_data["stack_path"] = stack_path
     progress_data["status"] = "done"
 
 @app.route('/')
@@ -70,7 +71,7 @@ def optimize():
         opto = NFL_Optimizer(site, num_lineups, num_uniques)
         total = max(int(opto.num_lineups * opto.pool_factor), opto.num_lineups)
 
-    progress_data.update({'current': 0, 'total': total, 'percent': 0, 'status': 'running', 'output_path': None})
+    progress_data.update({'current': 0, 'total': total, 'percent': 0, 'status': 'running', 'output_path': None, 'stack_path': None})
 
     thread = threading.Thread(target=run_optimizer, args=(opto, site, save_lineups))
     thread.start()
@@ -91,11 +92,12 @@ def simulate():
         sim.generate_field_lineups()
         sim.run_tournament_simulation()
         lineup_path, exposure_path = sim.save_results()
+        stack_path = None
     else:
         sim = NFL_GPP_Simulator(site, field_size, num_iterations, use_contest_data, use_lineup_input)
         sim.generate_field_lineups()
         sim.run_tournament_simulation()
-        lineup_path, exposure_path = sim.output()
+        lineup_path, exposure_path, stack_path = sim.output()
 
     # Limit displayed lineups to the first 1000 while keeping full export files
     lineup_df = pd.read_csv(lineup_path, nrows=1000)
@@ -104,6 +106,9 @@ def simulate():
         ("Lineups (first 1000)", lineup_df.to_html(index=False)),
         ("Exposure", exposure_df.to_html(index=False)),
     ]
+    if stack_path:
+        stack_df = pd.read_csv(stack_path)
+        tables.append(("Stack Exposure", stack_df.to_html(index=False)))
     return render_template('results.html', title='Simulation Results', tables=tables)
 
 
@@ -128,6 +133,10 @@ def results():
         return redirect('/')
     df = pd.read_csv(progress_data['output_path'], nrows=1000)
     tables = [("Lineups (first 1000)", df.to_html(index=False))]
+    stack_path = progress_data.get('stack_path')
+    if stack_path:
+        stack_df = pd.read_csv(stack_path)
+        tables.append(("Stack Exposure", stack_df.to_html(index=False)))
     return render_template('results.html', title='Optimization Results', tables=tables)
 
 if __name__ == '__main__':

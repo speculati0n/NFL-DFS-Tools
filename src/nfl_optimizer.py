@@ -51,6 +51,7 @@ class NFL_Optimizer:
         self.default_skillpos_var = 0.5
         self.default_def_var = 0.5
         self.min_lineup_salary = 0
+        self.stack_exposure_df = None
 
         self.load_config()
         self.load_rules()
@@ -935,7 +936,7 @@ class NFL_Optimizer:
                     for (players, fpts) in self.lineups
                     if tuple(players) in selected_set
                 ]
-                report_lineup_exposures(selected_players, self.player_dict, targets)
+
             else:
                 print(f"Warning: profile {self.profile} not found in config")
         else:
@@ -1011,8 +1012,16 @@ class NFL_Optimizer:
                 lineup_str = ",".join(map(str, fields))
                 f.write(f"{lineup_str}\n")
 
+        stack_path = None
+        if self.stack_exposure_df is not None:
+            stack_filename = (
+                f"../output/{self.site}_stack_exposure_{formatted_timestamp}.csv"
+            )
+            stack_path = os.path.join(os.path.dirname(__file__), stack_filename)
+            self.stack_exposure_df.to_csv(stack_path, index=False)
+
         print("Output done.")
-        return out_path
+        return out_path, stack_path
 
     def sort_lineup(self, lineup):
         copy_lineup = copy.deepcopy(lineup)
