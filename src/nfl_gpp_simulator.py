@@ -2321,13 +2321,7 @@ class NFL_GPP_Simulator:
 
     def output(self):
         id_player_dict = {
-            v["ID"]: {
-                **v,
-                "Opponent": v.get("Opponent") or v.get("Opp"),
-                "Position": v.get("Position")[0]
-                if isinstance(v.get("Position"), list)
-                else v.get("Position"),
-            }
+
             for v in self.player_dict.values()
         }
         unique = {}
