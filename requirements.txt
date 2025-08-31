@@ -9,3 +9,8 @@ seaborn
 numba
 Flask
 streamlit
+
+numpy
+pandas
+torch
+gymnasium
