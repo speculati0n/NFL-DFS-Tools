@@ -23,7 +23,16 @@ class PGAgent:
         self.last = None
 
     def act(self, mask):
-
+        x = torch.zeros(1, self.n)
+        logits = self.net(x).detach().numpy().flatten()
+        logits[mask == 0] = -1e9
+        probs = np.exp(logits - logits.max()); probs /= probs.sum()
+        a = int(np.random.choice(np.arange(self.n), p=probs))
+        self.last = (
+            torch.tensor(logits).unsqueeze(0),
+            a,
+            torch.tensor(mask, dtype=torch.float32).unsqueeze(0),
+        )
         return a
 
     def update(self, ret: float):
