@@ -27,13 +27,17 @@ if st.button("Run Arena"):
     st.success("Done")
     if bundle["contest_files"]:
         board = pd.read_csv(bundle["contest_files"][0])
-
+        pts_col = _find_points_col(board)
+        if pts_col and pts_col in df.columns:
+            scores = df[pts_col]
+            s = board.sort_values(pts_col, ascending=False)[pts_col]
             arr = scores.fillna(0).to_numpy()
             ranks = np.searchsorted(-s.to_numpy(), -arr, side="left") + 1
             df["contest_rank"] = ranks
             df["field_size"] = len(s)
             if "amount_won" in board.columns:
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
+                df = df.merge(payouts, left_on="contest_rank", right_on="rank", how="left")
 
     st.dataframe(df.head(50), use_container_width=True)
     st.download_button(
