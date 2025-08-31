@@ -23,7 +23,6 @@ class PGAgent:
         self.last = None
 
     def act(self, mask):
-        x = torch.zeros(1, self.n)
 
         return a
 
