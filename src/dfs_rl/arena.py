@@ -5,6 +5,7 @@ import pandas as pd
 from dfs_rl.envs.dk_nfl_env import DKNFLEnv
 from dfs_rl.agents.random_agent import RandomAgent
 from dfs_rl.agents.pg_agent import PGAgent
+from dfs_rl.agents.greedy_agent import GreedyAgent
 
 POINTS_COLS = [
     "projections_actpts",
@@ -43,6 +44,7 @@ def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150, train_pg:
     agents = {
         "random": RandomAgent(seed=1),
         "pg": PGAgent(n_players=n, seed=2),
+        "greedy": GreedyAgent(pool["projections_proj"].to_numpy()),
     }
 
     pts_col = _find_points_col(pool)
