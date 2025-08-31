@@ -8,7 +8,7 @@ PROJ_COLS = ["name","pos","team","opp","salary","projections_proj"]
 def load_week_folder(week_dir: str) -> Dict[str, pd.DataFrame]:
     """
     Load projections, players_ids, and contest CSVs for a given historical week.
-    - projections.csv: copy of *_Dadjusted.csv (must include name,pos,team,opp,salary,projections_proj)
+    - projections.csv: copy of *adjusted.csv from FantasyLabs (must include name,pos,team,opp,salary,projections_proj)
     - players_ids.csv: copy of YYYY-MM-DD.csv (must include displayname,draftableid)
     - contests/*.csv: Aggregated_Lineup_Stats_*.csv (leaderboard)
     """
@@ -18,8 +18,9 @@ def load_week_folder(week_dir: str) -> Dict[str, pd.DataFrame]:
     # projections
     proj_fp = os.path.join(week_dir, "projections.csv")
     if not os.path.exists(proj_fp):
-        # fallback: auto-pick a *_Dadjusted.csv if user drops it directly
-        cand = glob.glob(os.path.join(week_dir, "*_Dadjusted.csv"))
+        # fallback: auto-pick any *adjusted.csv if user drops it directly
+        cand = [p for p in glob.glob(os.path.join(week_dir, "*adjusted.csv"))
+                if "Aggregated_Lineup_Stats" not in os.path.basename(p)]
         if cand:
             proj_fp = cand[0]
     proj = pd.read_csv(proj_fp)
@@ -34,9 +35,13 @@ def load_week_folder(week_dir: str) -> Dict[str, pd.DataFrame]:
     # players ids
     pid_fp = os.path.join(week_dir, "players_ids.csv")
     if not os.path.exists(pid_fp):
+        # allow singular form
+        pid_fp = os.path.join(week_dir, "player_ids.csv")
+    if not os.path.exists(pid_fp):
         # fallback: try a dated csv in the folder (like '2019-09-22.csv')
         cand = [p for p in glob.glob(os.path.join(week_dir, "*.csv"))
-                if os.path.basename(p).startswith("201") and "Aggregated_Lineup_Stats" not in os.path.basename(p)]
+                if os.path.basename(p).startswith("201") and "Aggregated_Lineup_Stats" not in os.path.basename(p)
+                   and "adjusted" not in os.path.basename(p).lower()]
         if cand:
             pid_fp = cand[0]
     pids = pd.read_csv(pid_fp) if os.path.exists(pid_fp) else pd.DataFrame()
