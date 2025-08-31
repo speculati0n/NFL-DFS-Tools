@@ -1,4 +1,3 @@
-import numpy as np
 import torch, torch.nn as nn, torch.optim as optim
 
 class TinyPolicy(nn.Module):
@@ -24,20 +23,17 @@ class PGAgent:
 
     def act(self, mask):
         x = torch.zeros(1, self.n)
-        logits = self.net(x).detach().numpy().flatten()
-        logits[mask == 0] = -1e9
-        probs = np.exp(logits - logits.max()); probs /= probs.sum()
-        a = int(np.random.choice(np.arange(self.n), p=probs))
-        self.last = (
-            torch.tensor(logits).unsqueeze(0),
-            a,
-            torch.tensor(mask, dtype=torch.float32).unsqueeze(0),
-        )
+        logits = self.net(x)
+        mask_t = torch.tensor(mask, dtype=torch.bool).unsqueeze(0)
+        masked = logits.masked_fill(~mask_t, -1e9)
+        probs = torch.softmax(masked, dim=-1)
+        a = torch.distributions.Categorical(probs).sample().item()
+        self.last = (logits, a, mask_t)
         return a
 
     def update(self, ret: float):
         logits, a, m = self.last
-        masked = logits + torch.log(m + 1e-8)
+        masked = logits.masked_fill(~m, -1e9)
         logp = torch.log_softmax(masked, dim=-1)[0, a]
         loss = -logp * torch.tensor(ret, dtype=torch.float32)
         self.opt.zero_grad(); loss.backward(); self.opt.step()
