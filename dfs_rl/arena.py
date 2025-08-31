@@ -37,6 +37,7 @@ def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150, train_pg:
                 "lineup_idx": i,
                 "salary": int(L["salary"].sum()),
                 "proj": float(L["projections_proj"].sum()),
+                "actual": float(L["projections_actpts"].sum()) if "projections_actpts" in L.columns else np.nan,
                 "players": "|".join(L["name"].tolist())
             })
     return pd.DataFrame(rows)

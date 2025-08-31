@@ -22,5 +22,5 @@ if st.button("Run Backtest"):
     st.subheader("Generated lineups")
     st.dataframe(out["generated"].head(50), use_container_width=True)
     if out["scored"] is not None:
-        st.subheader("Scored vs contest (percentile & sim_rank by projections)")
+        st.subheader("Scored vs contest (rank & winnings)")
         st.dataframe(out["scored"].head(50), use_container_width=True)
