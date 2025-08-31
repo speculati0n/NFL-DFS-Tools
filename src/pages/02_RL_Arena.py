@@ -25,6 +25,17 @@ if st.button("Run Arena"):
     with st.spinner("Generating lineups..."):
         df = run_tournament(bundle["projections"], n_lineups_per_agent=n, train_pg=True)
     st.success("Done")
+    # show how each agent performed on average
+    summary = (
+        df.groupby("agent")[["salary", "projections_proj"]]
+        .mean()
+        .round(1)
+        .rename(columns={"projections_proj": "avg_proj"})
+    )
+    st.subheader("Average lineup quality by agent")
+    st.dataframe(summary, width="stretch")
+
+    # if contest results are available, attach ranks/payouts
     if bundle["contest_files"]:
         board = pd.read_csv(bundle["contest_files"][0])
         pts_col = _find_points_col(board)
@@ -39,7 +50,7 @@ if st.button("Run Arena"):
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
                 df = df.merge(payouts, left_on="contest_rank", right_on="rank", how="left")
 
-    st.dataframe(df.head(50), width="stretch")
+
     st.download_button(
         "Download all lineups (CSV)",
         df.to_csv(index=False).encode(),
