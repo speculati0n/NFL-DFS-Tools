@@ -27,8 +27,6 @@ if st.button("Run Arena"):
     st.success("Done")
     if bundle["contest_files"]:
         board = pd.read_csv(bundle["contest_files"][0])
-        pts_col = _find_points_col(board)
-        if pts_col is not None:
 
             arr = scores.fillna(0).to_numpy()
             ranks = np.searchsorted(-s.to_numpy(), -arr, side="left") + 1
@@ -38,4 +36,8 @@ if st.button("Run Arena"):
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
 
     st.dataframe(df.head(50), use_container_width=True)
-    st.download_button("Download all lineups (CSV)", df.to_csv(index=False).encode(), file_name="arena_lineups.csv")
+    st.download_button(
+        "Download all lineups (CSV)",
+        df.to_csv(index=False).encode(),
+        file_name="arena_lineups.csv",
+    )
