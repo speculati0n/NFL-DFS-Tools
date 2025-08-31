@@ -230,3 +230,17 @@ Ethereum Address:
 ![Eth Wallet QR Code](readme_images/eth_qr_code.png)
 
 0x2D62C15849ddC68DDB2F9dFBC426f0bF46eaE006
+
+## RL Arena & Backtester
+
+Put historical slates under:
+```
+data/historical/YYYY/YYYY-MM-DD/
+  projections.csv        # copy of *_Dadjusted.csv
+  players_ids.csv        # copy of YYYY-MM-DD.csv
+  contests/Aggregated_Lineup_Stats_*.csv
+```
+
+Run the Streamlit app and open:
+- RL Arena: generate N lineups per agent (random + small PG) from that week’s projections
+- Backtester: rank generated lineups vs contest points if present (else vs each other)
