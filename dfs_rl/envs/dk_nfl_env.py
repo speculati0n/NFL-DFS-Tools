@@ -15,7 +15,8 @@ class DKNFLEnv(gym.Env if gym else object):
     """
     Lineup-construction environment with action masking.
     - player_pool must include: name,pos,team,opp,salary,projections_proj
-    - Reward: sum of projections (or actuals if later attached)
+    - Reward: sum of projections (or actuals if later attached) with a penalty
+      when the total salary spent is below 49,300
     """
     metadata = {"render_modes": []}
 
@@ -74,6 +75,9 @@ class DKNFLEnv(gym.Env if gym else object):
         done = self.slot_idx >= 9
         if done:
             reward = float(self.pool.loc[self.picks, "projections_proj"].sum())
+            total_salary = DK_CAP - self.cap
+            if total_salary < 49300:
+                reward -= 49300 - total_salary
             return np.array([1.0], dtype=np.float32), reward, True, False, {"lineup_indices": self.picks}
         else:
             return np.array([0.0], dtype=np.float32), 0.0, False, False, {"action_mask": self._mask()}
