@@ -20,7 +20,7 @@ if st.button("Run Backtest"):
         out = backtest_week(week_dir, n_lineups_per_agent=n)
     st.success("Done")
     st.subheader("Generated lineups")
-    st.dataframe(out["generated"].head(50), use_container_width=True)
+    st.dataframe(out["generated"].head(50), width="stretch")
     if out["scored"] is not None:
         st.subheader("Scored vs contest (rank & winnings)")
-        st.dataframe(out["scored"].head(50), use_container_width=True)
+        st.dataframe(out["scored"].head(50), width="stretch")

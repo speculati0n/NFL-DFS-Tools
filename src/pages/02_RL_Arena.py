@@ -39,7 +39,7 @@ if st.button("Run Arena"):
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
                 df = df.merge(payouts, left_on="contest_rank", right_on="rank", how="left")
 
-    st.dataframe(df.head(50), use_container_width=True)
+    st.dataframe(df.head(50), width="stretch")
     st.download_button(
         "Download all lineups (CSV)",
         df.to_csv(index=False).encode(),
