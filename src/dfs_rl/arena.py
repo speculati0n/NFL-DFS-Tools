@@ -52,14 +52,5 @@ def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150, train_pg:
         for i in range(n_lineups_per_agent):
             idxs, steps, reward = _run_agent(env, agent, train=(train_pg and name == "pg"))
             L = pool.iloc[idxs].copy()
-            rows.append(
-                {
-                    "agent": name,
-                    "lineup_idx": i,
-                    "salary": int(L["salary"].sum()),
-                    "proj": float(L["projections_proj"].sum()),
-                    "actual": float(L[pts_col].sum()) if pts_col else np.nan,
-                    "players": "|".join(L["name"].tolist()),
-                }
-            )
+
     return pd.DataFrame(rows)
