@@ -1,10 +1,27 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import numpy as np
 import pandas as pd
 
 from dfs_rl.envs.dk_nfl_env import DKNFLEnv
 from dfs_rl.agents.random_agent import RandomAgent
 from dfs_rl.agents.pg_agent import PGAgent
+
+POINTS_COLS = [
+    "projections_actpts",
+    "score",
+    "dk_points",
+    "lineup_points",
+    "points",
+    "FPTS",
+    "total_points",
+]
+
+
+def _find_points_col(df: pd.DataFrame) -> Optional[str]:
+    for c in df.columns:
+        if c.lower() in [x.lower() for x in POINTS_COLS]:
+            return c
+    return None
 
 def _run_agent(env: DKNFLEnv, agent, train: bool) -> Tuple[list,int,float]:
     obs, info = env.reset()
@@ -25,19 +42,15 @@ def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150, train_pg:
     n = len(pool)
     agents = {
         "random": RandomAgent(seed=1),
-        "pg": PGAgent(n_players=n, seed=2)
+        "pg": PGAgent(n_players=n, seed=2),
     }
+
+    pts_col = _find_points_col(pool)
+
     rows = []
     for name, agent in agents.items():
         for i in range(n_lineups_per_agent):
-            idxs, steps, reward = _run_agent(env, agent, train=(train_pg and name=="pg"))
+            idxs, steps, reward = _run_agent(env, agent, train=(train_pg and name == "pg"))
             L = pool.iloc[idxs].copy()
-            rows.append({
-                "agent": name,
-                "lineup_idx": i,
-                "salary": int(L["salary"].sum()),
-                "proj": float(L["projections_proj"].sum()),
-                "actual": float(L["projections_actpts"].sum()) if "projections_actpts" in L.columns else np.nan,
-                "players": "|".join(L["name"].tolist())
-            })
+
     return pd.DataFrame(rows)
