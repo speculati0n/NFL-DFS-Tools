@@ -4,7 +4,7 @@ from dfs_rl.utils.data import find_weeks, load_week_folder
 from dfs_rl.arena import run_tournament
 
 st.set_page_config(page_title="RL Arena", layout="wide")
-st.title("\ud83c\udfc8 RL Arena \u2014 Multi-Agent Lineup Tournament")
+
 
 weeks = find_weeks()
 if not weeks:

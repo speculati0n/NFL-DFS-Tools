@@ -3,7 +3,7 @@ from dfs_rl.utils.data import find_weeks
 from backtesting.backtester import backtest_week
 
 st.set_page_config(page_title="Backtester", layout="wide")
-st.title("\ud83d\udcc8 Backtester \u2014 Generated Lineups vs Historical Contests")
+
 
 weeks = find_weeks()
 if not weeks:
