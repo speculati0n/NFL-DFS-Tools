@@ -34,6 +34,13 @@
   "custom_correlations": {},
 
   "rl": {
+    "epsilon": 0.10,
+    "softmax_temperature": 0.85,
+    "diversity_penalty_weight": 4.0,
+    "min_jaccard_diversity": 0.20,
+    "max_resample_attempts": 25,
+    "max_player_exposure": 0.45,
+    "dedupe_on_collect": true,
     "reward": {
       "base_metric": "actual_points",
       "normalize_by_field": false,
