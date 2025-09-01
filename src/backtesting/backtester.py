@@ -1,9 +1,18 @@
+import os
 import numpy as np
 import pandas as pd
 from typing import Dict, Optional
 
 from dfs_rl.utils.data import load_week_folder
 from dfs_rl.arena import run_tournament
+from dfs.constraints import (
+    Player,
+    Lineup,
+    validate_lineup,
+    sanitize_salary,
+    DEFAULT_SALARY_CAP,
+    DEFAULT_MIN_SPEND_PCT,
+)
 
 POINTS_COLS = ["score","dk_points","lineup_points","points","FPTS","total_points"]
 
@@ -13,10 +22,58 @@ def _find_points_col(df: pd.DataFrame) -> Optional[str]:
             return c
     return None
 
-def backtest_week(week_dir: str, n_lineups_per_agent: int = 150) -> Dict[str, pd.DataFrame]:
+def backtest_week(
+    week_dir: str,
+    n_lineups_per_agent: int = 150,
+    min_salary_pct: float | None = None,
+) -> Dict[str, pd.DataFrame]:
+    if min_salary_pct is None:
+        min_salary_pct = float(os.getenv("MIN_SALARY_PCT", DEFAULT_MIN_SPEND_PCT))
     bundle = load_week_folder(week_dir)
     pool = bundle["projections"].copy()
-    gen = run_tournament(pool, n_lineups_per_agent=n_lineups_per_agent, train_pg=False)
+    pool["salary"] = pool["salary"].apply(sanitize_salary)
+    gen = run_tournament(
+        pool,
+        n_lineups_per_agent=n_lineups_per_agent,
+        train_pg=False,
+        min_salary_pct=min_salary_pct,
+    )
+
+    # validate generated lineups
+    name_to_player: Dict[str, Player] = {}
+    for idx, row in pool.iterrows():
+        p = Player(
+            id=str(idx),
+            name=row["name"],
+            pos=row["pos"],
+            team=row.get("team"),
+            opp=row.get("opp"),
+            salary=int(row["salary"]),
+            proj=float(row.get("projections_proj", 0.0)),
+        )
+        name_to_player[p.name] = p
+
+    valid_rows = []
+    for _, row in gen.iterrows():
+        lineup = Lineup(
+            QB=name_to_player[row["QB"]],
+            RB1=name_to_player[row["RB1"]],
+            RB2=name_to_player[row["RB2"]],
+            WR1=name_to_player[row["WR1"]],
+            WR2=name_to_player[row["WR2"]],
+            WR3=name_to_player[row["WR3"]],
+            TE=name_to_player[row["TE"]],
+            FLEX=name_to_player[row["FLEX"]],
+            DST=name_to_player[row["DST"]],
+        )
+        if validate_lineup(
+            lineup, cap=DEFAULT_SALARY_CAP, min_pct=min_salary_pct
+        ):
+            valid_rows.append(row)
+        else:
+            print(f"Skipping invalid lineup with salary {lineup.salary()}")
+
+    gen = pd.DataFrame(valid_rows)
 
     # If we have a contest file with lineup points, compare
     scored = None

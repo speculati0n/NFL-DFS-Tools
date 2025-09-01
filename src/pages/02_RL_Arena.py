@@ -5,6 +5,10 @@ from dfs_rl.utils.data import find_weeks, load_week_folder
 from dfs_rl.arena import run_tournament
 from backtesting.backtester import _find_points_col
 
+import os
+
+from dfs.constraints import DEFAULT_MIN_SPEND_PCT
+
 st.set_page_config(page_title="RL Arena", layout="wide")
 
 
@@ -20,11 +24,19 @@ bundle = load_week_folder(week_dir)
 
 st.caption(f"Players in pool: {len(bundle['projections'])}")
 n = st.slider("Lineups per agent", 20, 300, 150, 10)
+min_salary_pct = st.sidebar.slider(
+    "Min salary spend (% of cap)", 0.90, 1.00, float(os.getenv("MIN_SALARY_PCT", DEFAULT_MIN_SPEND_PCT)), 0.005
+)
 
 if st.button("Run Arena"):
     with st.spinner("Generating lineups..."):
-        df = run_tournament(bundle["projections"], n_lineups_per_agent=n, train_pg=True)
-    st.success("Done")
+        df = run_tournament(
+            bundle["projections"],
+            n_lineups_per_agent=n,
+            train_pg=True,
+            min_salary_pct=min_salary_pct,
+        )
+        st.success("Done")
     if bundle["contest_files"]:
         board = pd.read_csv(bundle["contest_files"][0])
         pts_col = _find_points_col(board)
@@ -39,6 +51,7 @@ if st.button("Run Arena"):
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
                 df = df.merge(payouts, left_on="contest_rank", right_on="rank", how="left")
 
+    st.subheader(f"Generated lineups (≥{min_salary_pct:.0%} cap spend)")
     st.dataframe(df.head(50), width="stretch")
     st.download_button(
         "Download all lineups (CSV)",
