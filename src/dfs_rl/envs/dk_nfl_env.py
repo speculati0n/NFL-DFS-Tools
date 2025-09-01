@@ -75,6 +75,7 @@ class DKNFLEnv(gym.Env if gym else object):
 
     # --- helpers -------------------------------------------------
     def _empty_row_dict(self) -> Dict[str, Any]:
+        row: Dict[str, Any] = {"salary": 0, "projections_proj": 0.0}
 
         for slot in SLOTS:
             row[slot] = None
