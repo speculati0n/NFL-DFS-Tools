@@ -33,6 +33,38 @@
   "team_limits": {},
   "custom_correlations": {},
 
+  "rl": {
+    "reward": {
+      "base_metric": "actual_points",
+      "normalize_by_field": false,
+      "salary_floor": 49500,
+      "salary_floor_penalty_per_100": -0.25,
+      "stack_bonus": {
+        "QB+WR": 2.0,
+        "QB+WR+OppWR": 3.0,
+        "QB+TE": 1.25,
+        "WR vs OppWR": 0.5
+      },
+      "feature_penalties": {
+        "any_vs_dst": -1.0,
+        "double_te": -0.5
+      },
+      "flex_bonus": { "WR": 0.25, "RB": 0.10, "TE": 0.0 },
+      "duplication_penalty": { "enabled": false, "field_pct": 0.10, "penalty": -1.0 },
+      "target_distribution": {
+        "enabled": false,
+        "threshold": "top_5%",
+        "presence": {
+          "QB+WR": 0.60,
+          "QB+WR+OppWR": 0.30,
+          "QB+TE": 0.25
+        },
+        "lambda": 5.0,
+        "window": 150
+      }
+    }
+  },
+
   "profiles": {
     "top10_consistency": {
       "presence_targets_pct": {

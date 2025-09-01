@@ -1,8 +1,9 @@
 from typing import List, Tuple, Optional
 import os
+import json
 import numpy as np
 import pandas as pd
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any
 
 from dfs_rl.envs.dk_nfl_env import DKNFLEnv
 from dfs_rl.agents.random_agent import RandomAgent
@@ -17,6 +18,13 @@ from dfs.constraints import (
     DEFAULT_SALARY_CAP,
     DEFAULT_MIN_SPEND_PCT,
 )
+from dfs.stacks import (
+    compute_presence_and_counts,
+    classify_bucket,
+    compute_features,
+)
+from dfs.rl_reward import compute_reward
+from utils import get_config_path
 
 POINTS_COLS = [
     "projections_actpts",
@@ -77,7 +85,15 @@ def run_tournament(
         players.append(p)
         pool_by_pos[p.pos].append(p)
 
-    env = DKNFLEnv(pool, min_salary_pct=min_salary_pct)
+    cfg: Dict[str,Any] = {}
+    try:
+        with open(get_config_path()) as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {}
+    rl_reward_cfg = (cfg.get("rl") or {}).get("reward", {})
+
+    env = DKNFLEnv(pool, min_salary_pct=min_salary_pct, rl_reward_cfg=rl_reward_cfg)
     n = len(pool)
     agents = {
         "random": RandomAgent(pool["salary"].to_numpy(), seed=1),
@@ -120,9 +136,13 @@ def run_tournament(
                 )
                 continue
 
-            row = {"agent": name, "iteration": i, "salary": lineup.salary()}
+            row: Dict[str,Any] = {"agent": name, "iteration": i, "salary": lineup.salary()}
             for slot in slot_cols:
-                row[slot] = getattr(lineup, slot).name
+                p = getattr(lineup, slot)
+                row[slot] = p.name
+                row[f"{slot}_team"] = p.team
+                row[f"{slot}_opp"] = p.opp
+                row[f"{slot}_pos"] = p.pos
 
             row["projections_proj"] = lineup.projection()
             if pts_col:
@@ -136,6 +156,28 @@ def run_tournament(
                     row["score"] = row["projections_proj"]
             else:
                 row["score"] = row["projections_proj"]
+
+            flags, counts = compute_presence_and_counts(row)
+            feats = compute_features(row)
+            bucket = classify_bucket(flags)
+            row["stack_bucket"] = bucket
+            for k,v in flags.items():
+                row[f"stack_flags__{k}"] = v
+            for k,v in counts.items():
+                row[f"stack_count__{k}"] = v
+            for k,v in feats.items():
+                row[k] = v
+
+            r = compute_reward(row, rl_reward_cfg)
+            row.update({
+                "reward_total": r["total"],
+                "r_base": r["base"],
+                "r_salary_pen": r["salary_pen"],
+                "r_stack_bonus": r["stack_bonus"],
+                "r_feature_pen": r["feature_pen"],
+                "r_flex_bonus": r["flex_bonus"],
+                "r_dist_pen": r["dist_pen"],
+            })
 
             rows.append(row)
 
