@@ -27,6 +27,8 @@ n = st.slider("Lineups per agent", 20, 300, 150, 10)
 min_salary_pct = st.sidebar.slider(
     "Min salary spend (% of cap)", 0.90, 1.00, float(os.getenv("MIN_SALARY_PCT", DEFAULT_MIN_SPEND_PCT)), 0.005
 )
+seed = st.sidebar.number_input("Seed", value=0, step=1)
+np.random.seed(int(seed))
 
 if st.button("Run Arena"):
     with st.spinner("Generating lineups..."):
@@ -35,6 +37,7 @@ if st.button("Run Arena"):
             n_lineups_per_agent=n,
             train_pg=True,
             min_salary_pct=min_salary_pct,
+            seed=int(seed),
         )
         st.success("Done")
     if bundle["contest_files"]:
@@ -52,7 +55,12 @@ if st.button("Run Arena"):
                 df = df.merge(payouts, left_on="contest_rank", right_on="rank", how="left")
 
     st.subheader(f"Generated lineups (≥{min_salary_pct:.0%} cap spend)")
-    st.dataframe(df.head(50), width="stretch")
+    cols_to_show = [
+        "agent","iteration","salary","QB","RB1","RB2","WR1","WR2","WR3","TE","FLEX","DST",
+        "projections_proj","score","contest_rank","field_size",
+        "stack_bucket","double_te","flex_pos","dst_conflicts","reward"
+    ]
+    st.dataframe(df[[c for c in cols_to_show if c in df.columns]].head(50), width="stretch")
     st.download_button(
         "Download all lineups (CSV)",
         df.to_csv(index=False).encode(),

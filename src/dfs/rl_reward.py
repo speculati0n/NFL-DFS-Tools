@@ -1,49 +1,69 @@
 from typing import Dict, Any
-import math
 
-def compute_reward(ln: Dict[str,Any], cfg: Dict[str,Any]) -> Dict[str,float]:
-    r = {}
+from dfs.constraints import DEFAULT_SALARY_CAP
+from dfs.stacks import compute_presence_and_counts, compute_features
 
-    metric = (cfg.get("base_metric") or "actual_points")
-    if metric == "actual_points":
-        base = float(ln.get("score") or 0.0)
-    elif metric == "projected_points":
-        base = float(ln.get("projections_proj") or 0.0)
-    elif metric == "payout":
-        base = float(ln.get("amount_won") or 0.0)
-    elif metric == "finish_percentile":
-        rk = float(ln.get("contest_rank") or ln.get("rank") or 0.0)
-        fs = float(ln.get("field_size") or 1.0)
-        base = 1.0 - (rk - 1.0) / max(fs, 1.0)
+STACK_KEYS = ["stack_bucket", "double_te", "flex_pos", "dst_conflicts"]
+
+def compute_reward_components(row: Dict[str, Any], w: Dict[str, float]) -> Dict[str, float]:
+    """Return weighted components of the reward for debugging."""
+    comps = {
+        "proj": w.get("proj", 1.0) * float(row.get("projections_proj", 0.0)),
+        "salary_util": 0.0,
+        "stack": 0.0,
+        "double_te": 0.0,
+        "dst_conflicts": 0.0,
+        "flex_pref": 0.0,
+        "validity": 0.0,
+    }
+
+    salary = float(row.get("salary", 0.0)) / float(DEFAULT_SALARY_CAP)
+    comps["salary_util"] = w.get("salary_util", 0.0) * salary
+
+    flags, _ = compute_presence_and_counts(row)
+    if flags.get("QB+WR", 0):
+        comps["stack"] += w.get("qb_wr_bonus", 0.0)
+    if flags.get("QB+TE", 0):
+        comps["stack"] += w.get("qb_te_bonus", 0.0)
+    bringback_flags = [
+        "QB+WR+OppWR",
+        "QB+WR+OppTE",
+        "QB+TE+OppWR",
+        "QB+RB+OppWR",
+        "QB+RB+OppTE",
+        "QB+WR+WR+OppWR",
+        "QB+WR+WR+OppTE",
+        "QB+WR+WR+OppWR+OppWR",
+    ]
+    if any(flags.get(f, 0) for f in bringback_flags):
+        comps["stack"] += w.get("bringback_bonus", 0.0)
+
+    feats = compute_features(row)
+    comps["double_te"] = w.get("double_te_penalty", 0.0) * int(
+        feats.get("feat_double_te", 0)
+    )
+    comps["dst_conflicts"] = w.get("dst_conflict_penalty", 0.0) * int(
+        feats.get("feat_any_vs_dst", 0)
+    )
+    fpos = feats.get("flex_pos", "")
+    if fpos == "WR":
+        comps["flex_pref"] = w.get("flex_wr_bonus", 0.0)
+    elif fpos == "TE":
+        comps["flex_pref"] = w.get("flex_te_penalty", 0.0)
     else:
-        base = float(ln.get("score") or 0.0)
-    r["base"] = base
+        comps["flex_pref"] = 0.0
 
-    floor = float(cfg.get("salary_floor", 49500))
-    short = max(0.0, floor - float(ln.get("salary") or 0.0))
-    r["salary_pen"] = (short/100.0) * float(cfg.get("salary_floor_penalty_per_100", -0.25))
+    return comps
 
-    sb = 0.0
-    for k, w in (cfg.get("stack_bonus") or {}).items():
-        sb += float(w) * int(ln.get(f"stack_flags__{k}", 0))
-    r["stack_bonus"] = sb
 
-    feats = cfg.get("feature_penalties") or {}
-    fp = 0.0
-    if "any_vs_dst" in feats:
-        fp += float(feats["any_vs_dst"]) * int(ln.get("feat_any_vs_dst", 0))
-    if "double_te" in feats and int(ln.get("feat_double_te",0)) == 1:
-        fp += float(feats["double_te"])
-    r["feature_pen"] = fp
+def compute_reward(row: Dict[str, Any], w: Dict[str, float]) -> float:
+    comps = compute_reward_components(row, w)
+    return float(sum(comps.values()))
 
-    flexb = 0.0
-    fb = cfg.get("flex_bonus") or {}
-    if int(ln.get("flex_is_wr",0)) == 1: flexb += float(fb.get("WR",0.0))
-    if int(ln.get("flex_is_rb",0)) == 1: flexb += float(fb.get("RB",0.0))
-    if int(ln.get("flex_is_te",0)) == 1: flexb += float(fb.get("TE",0.0))
-    r["flex_bonus"] = flexb
 
-    r["dist_pen"] = 0.0  # optional batch KL; apply in arena loop if target_distribution.enabled
-
-    r["total"] = r["base"] + r["salary_pen"] + r["stack_bonus"] + r["feature_pen"] + r["flex_bonus"] + r["dist_pen"]
-    return r
+def compute_partial_reward(lineup_row_like: Dict[str, Any], w: Dict[str, float]) -> float:
+    """Safe to call with incomplete lineups; missing slots contribute 0."""
+    try:
+        return compute_reward(lineup_row_like, w)
+    except Exception:
+        return 0.0

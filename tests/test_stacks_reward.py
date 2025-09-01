@@ -29,9 +29,8 @@ def test_stack_flags_and_reward():
     feats = compute_features(row)
     assert feats['flex_pos'] == 'WR'
     assert feats['flex_is_wr'] == 1
-    cfg_low = {'stack_bonus': {'QB+WR+OppWR':1.0}}
-    cfg_high = {'stack_bonus': {'QB+WR+OppWR':5.0}}
-    base_input = {**row, **{f'stack_flags__{k}':v for k,v in flags.items()}, **feats}
-    r_low = compute_reward(base_input, cfg_low)
-    r_high = compute_reward(base_input, cfg_high)
-    assert r_high['total'] > r_low['total']
+    cfg_low = {'proj':0.0,'salary_util':0.0,'qb_wr_bonus':1.0,'bringback_bonus':0.0}
+    cfg_high = {'proj':0.0,'salary_util':0.0,'qb_wr_bonus':5.0,'bringback_bonus':0.0}
+    r_low = compute_reward(row, cfg_low)
+    r_high = compute_reward(row, cfg_high)
+    assert r_high > r_low
