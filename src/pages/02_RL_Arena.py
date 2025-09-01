@@ -56,9 +56,25 @@ if st.button("Run Arena"):
 
     st.subheader(f"Generated lineups (≥{min_salary_pct:.0%} cap spend)")
     cols_to_show = [
-        "agent","iteration","salary","QB","RB1","RB2","WR1","WR2","WR3","TE","FLEX","DST",
-
-        "stack_bucket","double_te","flex_pos","dst_conflicts","reward"
+        "agent",
+        "iteration",
+        "salary",
+        "projections_proj",
+        "projections_actpts",
+        "QB",
+        "RB1",
+        "RB2",
+        "WR1",
+        "WR2",
+        "WR3",
+        "TE",
+        "FLEX",
+        "DST",
+        "stack_bucket",
+        "double_te",
+        "flex_pos",
+        "dst_conflicts",
+        "reward",
     ]
     st.dataframe(df[[c for c in cols_to_show if c in df.columns]].head(50), width="stretch")
     st.download_button(

@@ -75,7 +75,11 @@ class DKNFLEnv(gym.Env if gym else object):
 
     # --- helpers -------------------------------------------------
     def _empty_row_dict(self) -> Dict[str, Any]:
-        row: Dict[str, Any] = {"salary": 0, "projections_proj": 0.0}
+        row: Dict[str, Any] = {
+            "salary": 0,
+            "projections_proj": 0.0,
+            "projections_actpts": 0.0,
+        }
 
         for slot in SLOTS:
             row[slot] = None
@@ -94,6 +98,7 @@ class DKNFLEnv(gym.Env if gym else object):
         self.cur_row[f"{slot}_pos"] = p.pos
         self.cur_row["salary"] += p.salary
         self.cur_row["projections_proj"] += p.proj
+        self.cur_row["projections_actpts"] += self.player_actpts[action]
 
         self.slot_idx += 1
         return slot, p
@@ -114,6 +119,8 @@ class DKNFLEnv(gym.Env if gym else object):
         self.cur_row[f"{slot}_pos"] = None
         self.cur_row["salary"] -= p.salary
         self.cur_row["projections_proj"] -= p.proj
+        # use player's id to index act pts list
+        self.cur_row["projections_actpts"] -= self.player_actpts[int(p.id)]
 
 
     def _lineup_complete(self) -> bool:

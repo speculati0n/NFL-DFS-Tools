@@ -14,7 +14,17 @@ from dfs.constraints import (
     DEFAULT_MIN_SPEND_PCT,
 )
 
-POINTS_COLS = ["score","dk_points","lineup_points","points","FPTS","total_points"]
+# Columns that might contain lineup point totals
+POINTS_COLS = [
+    "score",
+    "dk_points",
+    "lineup_points",
+    "points",
+    "FPTS",
+    "total_points",
+    "projections_proj",
+    "projections_actpts",
+]
 
 def _find_points_col(df: pd.DataFrame) -> Optional[str]:
     for c in df.columns:
