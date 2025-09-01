@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,12 @@ from dfs.constraints import (
     DEFAULT_SALARY_CAP,
     DEFAULT_MIN_SPEND_PCT,
 )
+from dfs.stacks import (
+    compute_presence_and_counts,
+    classify_bucket,
+    compute_features,
+)
+from dfs.rl_reward import compute_reward
 
 from dfs_rl.utils.lineup import SLOTS
 
@@ -28,7 +34,7 @@ class DKNFLEnv(gym.Env if gym else object):
 
     metadata = {"render_modes": []}
 
-    def __init__(self, player_pool: pd.DataFrame, min_salary_pct: float = None):
+    def __init__(self, player_pool: pd.DataFrame, min_salary_pct: float = None, rl_reward_cfg: Dict[str,Any] | None = None):
         self.min_salary_pct = (
             float(min_salary_pct)
             if min_salary_pct is not None
@@ -37,6 +43,7 @@ class DKNFLEnv(gym.Env if gym else object):
         self.pool = player_pool.reset_index(drop=True).copy()
         self.pool["salary"] = self.pool["salary"].apply(sanitize_salary)
         self.pool["projections_proj"] = self.pool["projections_proj"].astype(float)
+        self.rl_reward_cfg = rl_reward_cfg or {}
 
         self.players = []
         self.pool_by_pos = {"QB": [], "RB": [], "WR": [], "TE": [], "DST": []}
@@ -105,6 +112,37 @@ class DKNFLEnv(gym.Env if gym else object):
 
         if done:
             sal = self.lineup.salary()
+            lineup_dict: Dict[str,Any] = {"salary": sal}
+            for slot in SLOTS:
+                p = getattr(self.lineup, slot)
+                lineup_dict[slot] = p.name if p else None
+                lineup_dict[f"{slot}_team"] = p.team if p else None
+                lineup_dict[f"{slot}_opp"] = p.opp if p else None
+                lineup_dict[f"{slot}_pos"] = p.pos if p else None
+            lineup_dict["projections_proj"] = self.lineup.projection()
+            lineup_dict["score"] = self.lineup.projection()
+
+            flags, counts = compute_presence_and_counts(lineup_dict)
+            feats = compute_features(lineup_dict)
+            bucket = classify_bucket(flags)
+            lineup_dict["stack_bucket"] = bucket
+            for k,v in flags.items():
+                lineup_dict[f"stack_flags__{k}"] = v
+            for k,v in counts.items():
+                lineup_dict[f"stack_count__{k}"] = v
+            lineup_dict.update(feats)
+
+            r = compute_reward(lineup_dict, self.rl_reward_cfg)
+            lineup_dict.update({
+                "reward_total": r["total"],
+                "r_base": r["base"],
+                "r_salary_pen": r["salary_pen"],
+                "r_stack_bonus": r["stack_bonus"],
+                "r_feature_pen": r["feature_pen"],
+                "r_flex_bonus": r["flex_bonus"],
+                "r_dist_pen": r["dist_pen"],
+            })
+
             if not validate_lineup(
                 self.lineup,
                 cap=DEFAULT_SALARY_CAP,
@@ -112,15 +150,16 @@ class DKNFLEnv(gym.Env if gym else object):
             ):
                 reward = -100.0
             else:
-                reward = self.lineup.projection() - (
-                    (DEFAULT_SALARY_CAP - sal) / 1000.0
-                )
+                reward = r["total"]
+
+            info_dict = {"lineup_indices": self.picks, "lineup_salary": sal}
+            info_dict.update(lineup_dict)
             return (
                 np.array([1.0], dtype=np.float32),
                 reward,
                 True,
                 False,
-                {"lineup_indices": self.picks, "lineup_salary": sal},
+                info_dict,
             )
         else:
             return (
