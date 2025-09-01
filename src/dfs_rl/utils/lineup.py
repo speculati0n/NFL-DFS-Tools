@@ -1,7 +1,9 @@
 from typing import List, Dict
 import pandas as pd
 
-DK_CAP = 50000
+from dfs.constraints import DEFAULT_SALARY_CAP
+
+DK_CAP = DEFAULT_SALARY_CAP
 SLOTS = ["QB","RB","RB","WR","WR","WR","TE","FLEX","DST"]
 
 def valid_lineup(players: List[Dict]) -> bool:
