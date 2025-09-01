@@ -44,9 +44,7 @@ class DKNFLEnv(gym.Env if gym else object):
         self.pool = player_pool.reset_index(drop=True).copy()
         self.pool["salary"] = self.pool["salary"].apply(sanitize_salary)
         self.pool["projections_proj"] = self.pool["projections_proj"].astype(float)
-        if "projections_actpts" not in self.pool.columns:
-            self.pool["projections_actpts"] = 0.0
-        self.pool["projections_actpts"] = self.pool["projections_actpts"].astype(float)
+
         self.rl_reward_cfg = (rl_reward_cfg or {}).get("weights", rl_reward_cfg or {})
 
         self.players = []
@@ -77,7 +75,7 @@ class DKNFLEnv(gym.Env if gym else object):
 
     # --- helpers -------------------------------------------------
     def _empty_row_dict(self) -> Dict[str, Any]:
-        row: Dict[str, Any] = {"salary": 0.0, "projections_proj": 0.0, "projections_actpts": 0.0}
+
         for slot in SLOTS:
             row[slot] = None
             row[f"{slot}_team"] = None
@@ -95,7 +93,7 @@ class DKNFLEnv(gym.Env if gym else object):
         self.cur_row[f"{slot}_pos"] = p.pos
         self.cur_row["salary"] += p.salary
         self.cur_row["projections_proj"] += p.proj
-        self.cur_row["projections_actpts"] += self.player_actpts[action]
+
         self.slot_idx += 1
         return slot, p
 
@@ -115,7 +113,7 @@ class DKNFLEnv(gym.Env if gym else object):
         self.cur_row[f"{slot}_pos"] = None
         self.cur_row["salary"] -= p.salary
         self.cur_row["projections_proj"] -= p.proj
-        self.cur_row["projections_actpts"] -= self.player_actpts[int(p.id)]
+
 
     def _lineup_complete(self) -> bool:
         return self.slot_idx >= len(SLOTS)
@@ -183,9 +181,7 @@ class DKNFLEnv(gym.Env if gym else object):
             self.cur_row["double_te"] = feats.get("feat_double_te", 0)
             self.cur_row["flex_pos"] = feats.get("flex_pos", "")
             self.cur_row["dst_conflicts"] = feats.get("feat_any_vs_dst", 0)
-            self.cur_row["score"] = self.cur_row.get(
-                "projections_actpts", self.cur_row.get("projections_proj", 0.0)
-            )
+
             info_extra.update(self.cur_row)
             info_extra["lineup_indices"] = self.picks.copy()
 
