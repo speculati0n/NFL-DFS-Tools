@@ -17,7 +17,7 @@ class DKNFLEnv(gym.Env if gym else object):
     - player_pool must include: name,pos,team,opp,salary,projections_proj
     - Reward: sum of projections (or actuals if later attached)
       with a penalty for spending less than $49,300 of the cap
-    - Mask drops actions that make the $49,300 floor unreachable
+
     """
     metadata = {"render_modes": []}
 
