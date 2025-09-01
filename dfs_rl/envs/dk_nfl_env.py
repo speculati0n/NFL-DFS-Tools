@@ -17,6 +17,7 @@ class DKNFLEnv(gym.Env if gym else object):
     - player_pool must include: name,pos,team,opp,salary,projections_proj
     - Reward: sum of projections (or actuals if later attached) with a penalty
       when the total salary spent is below 49,300
+    - Mask drops actions that make the $49,300 floor unreachable
     """
     metadata = {"render_modes": []}
 
@@ -40,6 +41,24 @@ class DKNFLEnv(gym.Env if gym else object):
     def _needed_pos(self, slot_idx: int) -> str:
         return "FLEX" if SLOTS[slot_idx] == "FLEX" else SLOTS[slot_idx]
 
+    def _max_possible_salary(self, picks: list) -> int:
+        used = set(picks)
+        total = int(self.pool.loc[picks, "salary"].sum()) if picks else 0
+        for slot in range(len(picks), 9):
+            need = SLOTS[slot]
+            if need == "FLEX":
+                candidates = []
+                for p in ("RB", "WR", "TE"):
+                    candidates += [j for j in self.idx_by_pos[p] if j not in used]
+            else:
+                candidates = [j for j in self.idx_by_pos[need] if j not in used]
+            if not candidates:
+                return total
+            j = max(candidates, key=lambda x: int(self.pool.loc[x, "salary"]))
+            total += int(self.pool.loc[j, "salary"])
+            used.add(j)
+        return total
+
     def _mask(self) -> np.ndarray:
         n = len(self.pool)
         mask = np.zeros(n, dtype=np.int8)
@@ -52,10 +71,13 @@ class DKNFLEnv(gym.Env if gym else object):
             allowed.update(self.idx_by_pos[need])
         remain_slots = 9 - (len(self.picks) + 1)
         for i in allowed:
-            if i in self.picks: continue
-            sal = int(self.pool.loc[i,"salary"])
-            # naive min-salary buffer (2k per remaining slot)
-            if sal <= self.cap - 2000*max(0, remain_slots):
+            if i in self.picks:
+                continue
+            sal = int(self.pool.loc[i, "salary"])
+            # ensure we can still afford remaining slots
+            if sal > self.cap - 2000 * max(0, remain_slots):
+                continue
+            if self._max_possible_salary(self.picks + [i]) >= 49300:
                 mask[i] = 1
         return mask
 
