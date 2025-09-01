@@ -65,6 +65,22 @@
     }
   },
 
+  "rl_reward": {
+    "force_active": true,
+    "epsilon_greedy": 0.05,
+    "weights": {
+      "proj": 1.0,
+      "salary_util": 0.4,
+      "qb_wr_bonus": 8.0,
+      "qb_te_bonus": 4.0,
+      "bringback_bonus": 3.0,
+      "double_te_penalty": -6.0,
+      "dst_conflict_penalty": -5.0,
+      "flex_wr_bonus": 2.0,
+      "flex_te_penalty": -3.0
+    }
+  },
+
   "profiles": {
     "top10_consistency": {
       "presence_targets_pct": {
