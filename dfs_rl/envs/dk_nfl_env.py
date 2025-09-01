@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Optional
+from typing import Optional, Iterable
 
 try:
     import gymnasium as gym
@@ -10,6 +10,21 @@ except Exception:
     spaces = object
 
 from dfs_rl.utils.lineup import DK_CAP, SLOTS
+from dfs_rl.utils.lineups import lineup_key, jaccard_similarity
+
+
+def compute_reward(lineup: dict, base_points: float, stack_bonus: float, cfg: dict,
+                   accepted_keys_snapshot: Iterable[tuple]):
+    """Combine base points, stack bonus, and diversity penalty."""
+    reward = base_points + stack_bonus
+    lam = cfg.get("diversity_penalty_weight", 0.0)
+    if lam > 0 and accepted_keys_snapshot:
+        ids = list(lineup_key(lineup))
+        comp = list(accepted_keys_snapshot)[-200:]
+        if comp:
+            sim = max(jaccard_similarity(ids, list(k)) for k in comp)
+            reward -= lam * sim
+    return reward
 
 class DKNFLEnv(gym.Env if gym else object):
     """
