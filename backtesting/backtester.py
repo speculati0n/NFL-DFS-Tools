@@ -5,7 +5,16 @@ from typing import Dict, Optional
 from dfs_rl.utils.data import load_week_folder
 from dfs_rl.arena import run_tournament
 
-POINTS_COLS = ["score","dk_points","lineup_points","points","FPTS","total_points"]
+POINTS_COLS = [
+    "score",
+    "dk_points",
+    "lineup_points",
+    "points",
+    "FPTS",
+    "total_points",
+    "projections_proj",
+    "projections_actpts",
+]
 
 def _find_points_col(df: pd.DataFrame) -> Optional[str]:
     for c in df.columns:

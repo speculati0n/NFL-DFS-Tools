@@ -27,7 +27,29 @@ if st.button("Run Backtest"):
         out = backtest_week(week_dir, n_lineups_per_agent=n, min_salary_pct=min_salary_pct)
     st.success("Done")
     st.subheader(f"Generated lineups (≥{min_salary_pct:.0%} cap spend)")
-    st.dataframe(out["generated"].head(50), width="stretch")
+    cols_to_show = [
+        "agent",
+        "iteration",
+        "salary",
+        "projections_proj",
+        "projections_actpts",
+        "QB",
+        "RB1",
+        "RB2",
+        "WR1",
+        "WR2",
+        "WR3",
+        "TE",
+        "FLEX",
+        "DST",
+        "reward",
+        "contest_rank",
+        "field_size",
+        "amount_won",
+    ]
+    gen = out["generated"][ [c for c in cols_to_show if c in out["generated"].columns] ]
+    st.dataframe(gen.head(50), width="stretch")
     if out["scored"] is not None:
         st.subheader("Scored vs contest (rank & winnings)")
-        st.dataframe(out["scored"].head(50), width="stretch")
+        scored = out["scored"][ [c for c in cols_to_show if c in out["scored"].columns] ]
+        st.dataframe(scored.head(50), width="stretch")
