@@ -113,6 +113,7 @@ def attach_historical_outcomes(
 
     g['__lineup_key'] = _lineup_key(g)
 
+
     # Compose the columns we will expose
     expose_cols = ['contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','matches_found']
 
@@ -141,21 +142,7 @@ def attach_historical_outcomes(
             'contest_name',
         ]
         merged = g.merge(
-            hist[hist_cols],
-            on=['contest_id', '__lineup_key'],
-            how='left',
-            suffixes=('', '_hist'),
-        )
 
-        # Historical rank takes precedence, falling back to any existing values
-        merged['contest_rank'] = merged['rank'].combine_first(merged.get('contest_rank'))
-        merged.drop(columns=['rank'], inplace=True)
-
-        for c in ['amount_won','field_size','entries_per_user','entry_fee','contest_name']:
-            hist_col = f"{c}_hist"
-            if hist_col in merged.columns:
-                merged[c] = merged[hist_col].combine_first(merged.get(c))
-                merged.drop(columns=[hist_col], inplace=True)
 
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
         return merged.drop(columns=['__lineup_key'])
@@ -172,10 +159,7 @@ def attach_historical_outcomes(
         'contest_id',
     ]
     tmp = g.merge(
-        hist[hist_cols],
-        on='__lineup_key',
-        how='left',
-        suffixes=('', '_hist'),
+
     )
 
     def _reduce(group):
@@ -204,13 +188,3 @@ def attach_historical_outcomes(
                  .reset_index()
                  .set_index('index'))
 
-    out = g.join(reduced, how='left', rsuffix='_hist')
-
-    for c in expose_cols:
-        hist_col = f"{c}_hist"
-        if hist_col in out.columns:
-            out[c] = out[hist_col].combine_first(out.get(c))
-            out.drop(columns=[hist_col], inplace=True)
-
-    out['matches_found'] = out['matches_found'].fillna(0).astype(int)
-    return out.drop(columns=['__lineup_key'])
