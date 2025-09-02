@@ -33,13 +33,13 @@ def _find_points_col(df: pd.DataFrame) -> Optional[str]:
     return None
 
 def backtest_week(
-    week_dir: str,
+    week: str,
     n_lineups_per_agent: int = 150,
     min_salary_pct: float | None = None,
 ) -> Dict[str, pd.DataFrame]:
     if min_salary_pct is None:
         min_salary_pct = float(os.getenv("MIN_SALARY_PCT", DEFAULT_MIN_SPEND_PCT))
-    bundle = load_week_folder(week_dir)
+    bundle = load_week_folder(week)
     pool = bundle["projections"].copy()
     pool["salary"] = pool["salary"].apply(sanitize_salary)
     gen = run_tournament(

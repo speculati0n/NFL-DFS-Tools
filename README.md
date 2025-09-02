@@ -233,12 +233,12 @@ Ethereum Address:
 
 ## RL Arena & Backtester
 
-Put historical slates under:
+Put historical slates under a single folder:
 ```
-data/historical/YYYY/YYYY-MM-DD/
-  projections.csv        # copy of *_Dadjusted.csv
-  players_ids.csv        # copy of YYYY-MM-DD.csv
-  contests/Aggregated_Lineup_Stats_*.csv
+data/historical/
+  contests/Aggregated_Lineup_Stats_YYYY-MM-DD_stack.csv
+  projections/*_Dadjusted.csv
+  players/YYYY-MM-DD.csv
 ```
 
 Run the Streamlit app and open:

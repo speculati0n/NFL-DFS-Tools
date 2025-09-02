@@ -14,8 +14,8 @@ from dfs_rl.utils.data import load_week_folder
 
 @pytest.fixture(scope="module")
 def sample_generated_lineups():
-    week_dir = os.path.join("data", "historical", "2019", "2019-09-22")
-    bundle = load_week_folder(week_dir)
+    week = "2019-09-22"
+    bundle = load_week_folder(week)
     pool = bundle["projections"]
     df = run_tournament(pool, n_lineups_per_agent=5, train_pg=False, min_salary_pct=0.99)
 

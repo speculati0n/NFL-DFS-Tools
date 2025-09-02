@@ -18,13 +18,13 @@ st.set_page_config(page_title="RL Arena", layout="wide")
 
 weeks = find_weeks()
 if not weeks:
-    st.warning("No historical weeks found under data/historical/YYYY/YYYY-MM-DD")
+    st.warning("No historical data found under data/historical")
     st.stop()
 
-label_to_path = {lab: path for lab, path in weeks}
-choice = st.selectbox("Select week:", list(label_to_path.keys()))
-week_dir = label_to_path[choice]
-bundle = load_week_folder(week_dir)
+label_to_key = {lab: key for lab, key in weeks}
+choice = st.selectbox("Select week:", list(label_to_key.keys()))
+week_key = label_to_key[choice]
+bundle = load_week_folder(week_key)
 
 st.caption(f"Players in pool: {len(bundle['projections'])}")
 n = st.slider("Lineups per agent", 20, 300, 150, 10)
@@ -83,7 +83,7 @@ if st.button("Run Arena"):
                     if "contest_name" in board.columns:
                         df.loc[na_mask, "contest_name"] = board["contest_name"].iloc[0]
 
-    selected_date_iso = choice[-10:]
+    selected_date_iso = choice
     HIST_ROOT = "data/historical"
     df = attach_historical_outcomes(
         generated_df=df,
