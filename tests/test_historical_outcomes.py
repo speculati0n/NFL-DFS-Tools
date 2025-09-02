@@ -1,5 +1,6 @@
 import os
 import sys
+import pandas as pd
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -23,3 +24,15 @@ def test_attach_historical_outcomes_handles_existing_columns():
     second = attach_historical_outcomes(first, date_like, base_dir)
 
     assert second["contest_rank"].iloc[0] == first["contest_rank"].iloc[0]
+
+
+def test_attach_historical_outcomes_preserves_existing_when_no_match():
+    base_dir = os.path.join("data", "historical")
+    date_like = "2019-09-08"
+    lineup = {s: f"{s}_player" for s in ROSTER_SLOTS}
+    lineup.update({"contest_rank": 7, "amount_won": 0.0})
+    generated = pd.DataFrame([lineup])
+
+    out = attach_historical_outcomes(generated, date_like, base_dir)
+    assert out["contest_rank"].iloc[0] == 7
+    assert out["matches_found"].iloc[0] == 0

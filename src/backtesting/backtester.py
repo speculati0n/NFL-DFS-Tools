@@ -89,14 +89,27 @@ def backtest_week(
     scored = None
     if bundle["contest_files"]:
         board = pd.read_csv(bundle["contest_files"][0])
-        pts_col = _find_points_col(board)
-        if pts_col and pts_col in gen.columns:
-            scores = gen[pts_col]
-            s = board.sort_values(pts_col, ascending=False)[pts_col]
+        pts_col_board = _find_points_col(board)
+        pts_col_gen = _find_points_col(gen)
+        if pts_col_board and pts_col_gen:
+            scores = gen[pts_col_gen]
+            s = board.sort_values(pts_col_board, ascending=False)[pts_col_board]
             arr = scores.fillna(0).to_numpy()
             ranks = np.searchsorted(-s.to_numpy(), -arr, side="left") + 1
             gen["contest_rank"] = ranks
-            gen["field_size"] = len(s)
+            gen["field_size"] = (
+                int(board["maximumEntries"].iloc[0])
+                if "maximumEntries" in board.columns
+                else len(s)
+            )
+            if "maximumEntriesPerUser" in board.columns:
+                gen["entries_per_user"] = int(board["maximumEntriesPerUser"].iloc[0])
+            if "entryFee" in board.columns:
+                gen["entry_fee"] = board["entryFee"].iloc[0]
+            for cname in ["Contest Name", "contest_name", "Contest name", "contestName"]:
+                if cname in board.columns:
+                    gen["contest_name"] = board[cname].iloc[0]
+                    break
             if "amount_won" in board.columns:
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
                 gen = gen.merge(payouts, left_on="contest_rank", right_on="rank", how="left")

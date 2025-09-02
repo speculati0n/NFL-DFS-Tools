@@ -24,3 +24,13 @@ def test_backtester_includes_projection_columns():
     gen = res["generated"]
     assert "projections_proj" in gen.columns
     assert "projections_actpts" in gen.columns
+
+
+def test_backtester_uses_score_for_rank_and_metadata():
+    week_dir = os.path.join("data", "historical", "2019", "2019-09-22")
+    res = backtest_week(week_dir, n_lineups_per_agent=1)
+    gen = res["generated"]
+    assert "contest_rank" in gen.columns
+    assert gen["contest_rank"].notna().any()
+    for col in ["field_size", "entries_per_user", "entry_fee"]:
+        assert col in gen.columns
