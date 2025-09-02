@@ -1,6 +1,7 @@
 import streamlit as st
 from dfs_rl.utils.data import find_weeks
 from backtesting.backtester import backtest_week
+from dfs_rl.utils.historical_outcomes import attach_historical_outcomes
 
 import os
 
@@ -26,6 +27,20 @@ if st.button("Run Backtest"):
     with st.spinner("Backtesting..."):
         out = backtest_week(week_dir, n_lineups_per_agent=n, min_salary_pct=min_salary_pct)
     st.success("Done")
+    selected_date_iso = choice[-10:]
+    HIST_ROOT = "data/historical"
+    out["generated"] = attach_historical_outcomes(
+        generated_df=out["generated"],
+        date_like=selected_date_iso,
+        base_dir=HIST_ROOT,
+    )
+    if out["scored"] is not None:
+        out["scored"] = attach_historical_outcomes(
+            generated_df=out["scored"],
+            date_like=selected_date_iso,
+            base_dir=HIST_ROOT,
+        )
+
     st.subheader(f"Generated lineups (≥{min_salary_pct:.0%} cap spend)")
     cols_to_show = [
         "agent",
@@ -33,6 +48,13 @@ if st.button("Run Backtest"):
         "salary",
         "projections_proj",
         "projections_actpts",
+        "contest_rank",
+        "amount_won",
+        "field_size",
+        "entries_per_user",
+        "entry_fee",
+        "contest_name",
+        "matches_found",
         "QB",
         "RB1",
         "RB2",
@@ -43,13 +65,20 @@ if st.button("Run Backtest"):
         "FLEX",
         "DST",
         "reward",
-        "contest_rank",
-        "field_size",
-        "amount_won",
     ]
     gen = out["generated"][ [c for c in cols_to_show if c in out["generated"].columns] ]
     st.dataframe(gen.head(50), width="stretch")
+    st.download_button(
+        "Download all lineups (CSV)",
+        gen.to_csv(index=False).encode(),
+        file_name="backtester_lineups.csv",
+    )
     if out["scored"] is not None:
         st.subheader("Scored vs contest (rank & winnings)")
         scored = out["scored"][ [c for c in cols_to_show if c in out["scored"].columns] ]
         st.dataframe(scored.head(50), width="stretch")
+        st.download_button(
+            "Download scored lineups (CSV)",
+            scored.to_csv(index=False).encode(),
+            file_name="backtester_scored.csv",
+        )
