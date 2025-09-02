@@ -107,18 +107,7 @@ def attach_historical_outcomes(
 
     # Normalize generated_df columns (Contest ID & Contest Name may exist already)
     if 'Contest ID' in g.columns and 'contest_id' not in g.columns:
-        g = g.rename(columns={'Contest ID': 'contest_id'})
-    if 'Contest Name' in g.columns and 'contest_name' not in g.columns:
-        g = g.rename(columns={'Contest Name': 'contest_name'})
 
-    g['__lineup_key'] = _lineup_key(g)
-
-    # Compose the columns we will expose and drop any pre-existing ones
-    expose_cols = ['contest_rank', 'amount_won', 'field_size', 'entries_per_user',
-                   'entry_fee', 'contest_name', 'matches_found']
-    existing = [c for c in expose_cols if c in g.columns]
-    if existing:
-        g = g.drop(columns=existing)
 
     if hist.empty:
         for c in expose_cols:
@@ -129,19 +118,13 @@ def attach_historical_outcomes(
 
     if has_cid:
         merged = g.merge(
-            hist[['contest_id', '__lineup_key', 'rank', 'amount_won', 'field_size',
-                  'entries_per_user', 'entry_fee', 'contest_name']],
-            on=['contest_id', '__lineup_key'],
-            how='left'
-        )
-        merged = merged.rename(columns={'rank': 'contest_rank'})
+
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
         return merged.drop(columns=['__lineup_key'])
 
     # No Contest ID → reduce duplicates by best rank, sum amount_won
     tmp = g.merge(
-        hist[['__lineup_key', 'rank', 'amount_won', 'field_size', 'entries_per_user',
-              'entry_fee', 'contest_name', 'contest_id']],
+
         on='__lineup_key',
         how='left'
     )
@@ -166,12 +149,6 @@ def attach_historical_outcomes(
             'matches_found': matches
         })
 
-    reduced = (
-        tmp.reset_index()
-           .groupby('index', dropna=False)
-           .apply(_reduce, include_groups=False)
-           .reset_index()
-           .set_index('index')
-    )
+
     out = g.join(reduced, how='left').drop(columns=['__lineup_key'])
     return out
