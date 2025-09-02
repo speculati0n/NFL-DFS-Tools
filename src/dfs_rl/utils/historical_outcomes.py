@@ -116,13 +116,18 @@ def attach_historical_outcomes(
     # Compose the columns we will expose
     expose_cols = ['contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','matches_found']
 
-    # If this function is called multiple times, make sure we don't carry over
-    # previous exposure columns which would clash during joins/merges below.
-    g = g.drop(columns=[c for c in expose_cols if c in g.columns], errors='ignore')
+    # Stash any existing columns so we can preserve pre-computed results
+    existing = {c: g[c] for c in expose_cols if c in g.columns}
+    g = g.drop(columns=list(existing.keys()), errors='ignore')
 
     if hist.empty:
+        # No historical data → restore existing columns (if any) and
+        # populate missing ones with NA
+        for c, series in existing.items():
+            g[c] = series
         for c in expose_cols:
-            g[c] = pd.NA
+            if c not in g.columns:
+                g[c] = pd.NA
         return g.drop(columns=['__lineup_key'])
 
     has_cid = 'contest_id' in g.columns and 'contest_id' in hist.columns
@@ -135,6 +140,11 @@ def attach_historical_outcomes(
         )
         merged = merged.rename(columns={'rank':'contest_rank'})
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
+        for c, series in existing.items():
+            if c in merged.columns:
+                merged[c] = merged[c].combine_first(series)
+            else:
+                merged[c] = series
         return merged.drop(columns=['__lineup_key'])
 
     # No Contest ID → reduce duplicates by best rank, sum amount_won
@@ -170,4 +180,9 @@ def attach_historical_outcomes(
                  .reset_index()
                  .set_index('index'))
     out = g.join(reduced, how='left').drop(columns=['__lineup_key'])
+    for c, series in existing.items():
+        if c in out.columns:
+            out[c] = out[c].combine_first(series)
+        else:
+            out[c] = series
     return out

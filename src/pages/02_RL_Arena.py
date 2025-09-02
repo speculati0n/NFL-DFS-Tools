@@ -43,14 +43,27 @@ if st.button("Run Arena"):
         st.success("Done")
     if bundle["contest_files"]:
         board = pd.read_csv(bundle["contest_files"][0])
-        pts_col = _find_points_col(board)
-        if pts_col and pts_col in df.columns:
-            scores = df[pts_col]
-            s = board.sort_values(pts_col, ascending=False)[pts_col]
+        pts_col_board = _find_points_col(board)
+        pts_col_df = _find_points_col(df)
+        if pts_col_board and pts_col_df:
+            scores = df[pts_col_df]
+            s = board.sort_values(pts_col_board, ascending=False)[pts_col_board]
             arr = scores.fillna(0).to_numpy()
             ranks = np.searchsorted(-s.to_numpy(), -arr, side="left") + 1
             df["contest_rank"] = ranks
-            df["field_size"] = len(s)
+            df["field_size"] = (
+                int(board["maximumEntries"].iloc[0])
+                if "maximumEntries" in board.columns
+                else len(s)
+            )
+            if "maximumEntriesPerUser" in board.columns:
+                df["entries_per_user"] = int(board["maximumEntriesPerUser"].iloc[0])
+            if "entryFee" in board.columns:
+                df["entry_fee"] = board["entryFee"].iloc[0]
+            for cname in ["Contest Name", "contest_name", "Contest name", "contestName"]:
+                if cname in board.columns:
+                    df["contest_name"] = board[cname].iloc[0]
+                    break
             if "amount_won" in board.columns:
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
                 df = df.merge(payouts, left_on="contest_rank", right_on="rank", how="left")
