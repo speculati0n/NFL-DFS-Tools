@@ -131,19 +131,35 @@ def attach_historical_outcomes(
     has_cid = 'contest_id' in g.columns and 'contest_id' in hist.columns
 
     if has_cid:
+        hist_cols = [
+            'contest_id',
+            '__lineup_key',
+            'rank',
+            'amount_won',
+            'field_size',
+            'entries_per_user',
+            'entry_fee',
+            'contest_name',
+        ]
         merged = g.merge(
-            hist[['contest_id','__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name']],
-            on=['contest_id','__lineup_key'],
+
 
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
         return merged.drop(columns=['__lineup_key'])
 
-    # No Contest ID → reduce duplicates by best rank, sum amount_won
+    # No Contest ID -> reduce duplicates by best rank, sum amount_won
+    hist_cols = [
+        '__lineup_key',
+        'rank',
+        'amount_won',
+        'field_size',
+        'entries_per_user',
+        'entry_fee',
+        'contest_name',
+        'contest_id',
+    ]
     tmp = g.merge(
-        hist[['__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','contest_id']],
-        on='__lineup_key',
-        how='left',
-        suffixes=('', '_hist')
+
     )
 
     def _reduce(group):
