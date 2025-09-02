@@ -116,6 +116,10 @@ def attach_historical_outcomes(
     # Compose the columns we will expose
     expose_cols = ['contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','matches_found']
 
+    # If this function is called multiple times, make sure we don't carry over
+    # previous exposure columns which would clash during joins/merges below.
+    g = g.drop(columns=[c for c in expose_cols if c in g.columns], errors='ignore')
+
     if hist.empty:
         for c in expose_cols:
             g[c] = pd.NA
