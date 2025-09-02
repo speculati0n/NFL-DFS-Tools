@@ -29,7 +29,10 @@ def _date_to_filename(date_like: str) -> str:
 
 # --- flexible column aliasing ---
 ALIASES = {
-    'rank': ['rank', 'Rank', 'RANK', 'contest_rank'],
+    # Contest leaderboard rank may appear under various headers; normalize it
+    # to ``contest_rank`` so it doesn't collide with any existing ``rank``
+    # column that may exist on generated lineups.
+    'contest_rank': ['rank', 'Rank', 'RANK', 'contest_rank'],
     'amount_won': ['amount_won','Amount Won','amountWon','Winnings','winnings','Payout','payout'],
     'contest_id': ['Contest ID','ContestID','contest_id','ContestId'],
     'field_size': ['field_size','Field Size','maximumEntries'],
@@ -68,7 +71,7 @@ def load_outcomes_for_date(base_dir: str, date_like: str) -> pd.DataFrame:
     if not fps:
         return pd.DataFrame()
 
-    keeps = (['contest_id','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name'] + ROSTER_SLOTS)
+    keeps = (['contest_id','contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name'] + ROSTER_SLOTS)
     out = []
     for fp in fps:
         try:
@@ -134,11 +137,10 @@ def attach_historical_outcomes(
 
     if has_cid:
         merged = g.merge(
-            hist[['contest_id','__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name']],
+            hist[['contest_id','__lineup_key','contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name']],
             on=['contest_id','__lineup_key'],
             how='left'
         )
-        merged = merged.rename(columns={'rank':'contest_rank'})
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
         for c, series in existing.items():
             if c in merged.columns:
@@ -149,13 +151,13 @@ def attach_historical_outcomes(
 
     # No Contest ID → reduce duplicates by best rank, sum amount_won
     tmp = g.merge(
-        hist[['__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','contest_id']],
+        hist[['__lineup_key','contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','contest_id']],
         on='__lineup_key',
         how='left'
     )
 
     def _reduce(group):
-        best_rank = group['rank'].min() if group['rank'].notna().any() else pd.NA
+        best_rank = group['contest_rank'].min() if group['contest_rank'].notna().any() else pd.NA
         amt = group['amount_won'].fillna(0).sum() if group['amount_won'].notna().any() else pd.NA
         fs = group['field_size'].dropna().max() if 'field_size' in group and group['field_size'].notna().any() else pd.NA
         epu = group['entries_per_user'].dropna().max() if 'entries_per_user' in group and group['entries_per_user'].notna().any() else pd.NA
