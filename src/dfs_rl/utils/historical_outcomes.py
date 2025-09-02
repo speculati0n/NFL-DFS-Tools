@@ -166,12 +166,26 @@ def attach_historical_outcomes(
     has_cid = 'contest_id' in g.columns and 'contest_id' in hist.columns
 
     if has_cid:
-        merged = g.merge(
-            hist[['contest_id', '__lineup_key', 'rank', 'amount_won', 'field_size', 'entries_per_user', 'entry_fee', 'contest_name']],
-            on=['contest_id', '__lineup_key'],
-            how='left'
-        )
-        merged = merged.rename(columns={'rank': 'contest_rank'})
+        cols = [
+            'contest_id',
+            '__lineup_key',
+            'rank',
+            'amount_won',
+            'field_size',
+            'entries_per_user',
+            'entry_fee',
+            'contest_name',
+        ]
+        cols = [c for c in cols if c in hist.columns]
+        merged = g.merge(hist[cols], on=['contest_id', '__lineup_key'], how='left')
+        if 'rank' in merged.columns:
+            merged = merged.rename(columns={'rank': 'contest_rank'})
+        else:
+            merged['contest_rank'] = pd.NA
+        # ensure expected columns exist even if absent in historical data
+        for missing in ['amount_won', 'field_size', 'entries_per_user', 'entry_fee', 'contest_name']:
+            if missing not in merged.columns:
+                merged[missing] = pd.NA
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
         for c, series in existing.items():
             if c in merged.columns:
@@ -181,22 +195,29 @@ def attach_historical_outcomes(
         return merged.drop(columns=['__lineup_key'])
 
     # No Contest ID → reduce duplicates by best rank, sum amount_won
-    tmp = g.merge(
-        hist[['__lineup_key', 'rank', 'amount_won', 'field_size', 'entries_per_user', 'entry_fee', 'contest_name', 'contest_id']],
-        on='__lineup_key',
-        how='left'
-    )
+    cols = [
+        '__lineup_key',
+        'rank',
+        'amount_won',
+        'field_size',
+        'entries_per_user',
+        'entry_fee',
+        'contest_name',
+        'contest_id',
+    ]
+    cols = [c for c in cols if c in hist.columns]
+    tmp = g.merge(hist[cols], on='__lineup_key', how='left')
 
     def _reduce(group):
-        best_rank = group['rank'].min() if group['rank'].notna().any() else pd.NA
-        amt = group['amount_won'].fillna(0).sum() if group['amount_won'].notna().any() else pd.NA
+        best_rank = group['rank'].min() if 'rank' in group and group['rank'].notna().any() else pd.NA
+        amt = group['amount_won'].fillna(0).sum() if 'amount_won' in group and group['amount_won'].notna().any() else pd.NA
         fs = group['field_size'].dropna().max() if 'field_size' in group and group['field_size'].notna().any() else pd.NA
         epu = group['entries_per_user'].dropna().max() if 'entries_per_user' in group and group['entries_per_user'].notna().any() else pd.NA
         fee = group['entry_fee'].dropna().max() if 'entry_fee' in group and group['entry_fee'].notna().any() else pd.NA
         # prefer the most frequent contest_name in ties
-        cname = group['contest_name'].dropna()
-        cname = cname.mode().iat[0] if len(cname) else pd.NA
-        matches = group['contest_id'].nunique(dropna=True)
+        cname_series = group['contest_name'].dropna() if 'contest_name' in group else pd.Series()
+        cname = cname_series.mode().iat[0] if len(cname_series) else pd.NA
+        matches = group['contest_id'].nunique(dropna=True) if 'contest_id' in group else 0
         return pd.Series({
             'contest_rank': best_rank,
             'amount_won': amt,
@@ -204,7 +225,7 @@ def attach_historical_outcomes(
             'entries_per_user': epu,
             'entry_fee': fee,
             'contest_name': cname,
-            'matches_found': matches
+            'matches_found': matches,
         })
 
     reduced = (
