@@ -29,7 +29,10 @@ def _date_to_filename(date_like: str) -> str:
 
 # --- flexible column aliasing ---
 ALIASES = {
-    'rank': ['rank', 'Rank', 'RANK', 'contest_rank'],
+    # Contest leaderboard rank may appear under various headers; normalize it
+    # to ``contest_rank`` so it doesn't collide with any existing ``rank``
+    # column that may exist on generated lineups.
+    'contest_rank': ['rank', 'Rank', 'RANK', 'contest_rank'],
     'amount_won': ['amount_won','Amount Won','amountWon','Winnings','winnings','Payout','payout'],
     'contest_id': ['Contest ID','ContestID','contest_id','ContestId'],
     'field_size': ['field_size','Field Size','maximumEntries'],
@@ -68,7 +71,7 @@ def load_outcomes_for_date(base_dir: str, date_like: str) -> pd.DataFrame:
     if not fps:
         return pd.DataFrame()
 
-    keeps = (['contest_id','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name'] + ROSTER_SLOTS)
+    keeps = (['contest_id','contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name'] + ROSTER_SLOTS)
     out = []
     for fp in fps:
         try:
@@ -116,36 +119,45 @@ def attach_historical_outcomes(
     # Compose the columns we will expose
     expose_cols = ['contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','matches_found']
 
-    # If this function is called multiple times, make sure we don't carry over
-    # previous exposure columns which would clash during joins/merges below.
-    g = g.drop(columns=[c for c in expose_cols if c in g.columns], errors='ignore')
+    # Stash any existing columns so we can preserve pre-computed results
+    existing = {c: g[c] for c in expose_cols if c in g.columns}
+    g = g.drop(columns=list(existing.keys()), errors='ignore')
 
     if hist.empty:
+        # No historical data → restore existing columns (if any) and
+        # populate missing ones with NA
+        for c, series in existing.items():
+            g[c] = series
         for c in expose_cols:
-            g[c] = pd.NA
+            if c not in g.columns:
+                g[c] = pd.NA
         return g.drop(columns=['__lineup_key'])
 
     has_cid = 'contest_id' in g.columns and 'contest_id' in hist.columns
 
     if has_cid:
         merged = g.merge(
-            hist[['contest_id','__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name']],
+            hist[['contest_id','__lineup_key','contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name']],
             on=['contest_id','__lineup_key'],
             how='left'
         )
-        merged = merged.rename(columns={'rank':'contest_rank'})
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
+        for c, series in existing.items():
+            if c in merged.columns:
+                merged[c] = merged[c].combine_first(series)
+            else:
+                merged[c] = series
         return merged.drop(columns=['__lineup_key'])
 
     # No Contest ID → reduce duplicates by best rank, sum amount_won
     tmp = g.merge(
-        hist[['__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','contest_id']],
+        hist[['__lineup_key','contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','contest_id']],
         on='__lineup_key',
         how='left'
     )
 
     def _reduce(group):
-        best_rank = group['rank'].min() if group['rank'].notna().any() else pd.NA
+        best_rank = group['contest_rank'].min() if group['contest_rank'].notna().any() else pd.NA
         amt = group['amount_won'].fillna(0).sum() if group['amount_won'].notna().any() else pd.NA
         fs = group['field_size'].dropna().max() if 'field_size' in group and group['field_size'].notna().any() else pd.NA
         epu = group['entries_per_user'].dropna().max() if 'entries_per_user' in group and group['entries_per_user'].notna().any() else pd.NA
@@ -170,4 +182,9 @@ def attach_historical_outcomes(
                  .reset_index()
                  .set_index('index'))
     out = g.join(reduced, how='left').drop(columns=['__lineup_key'])
+    for c, series in existing.items():
+        if c in out.columns:
+            out[c] = out[c].combine_first(series)
+        else:
+            out[c] = series
     return out
