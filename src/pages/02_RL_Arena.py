@@ -4,7 +4,10 @@ import numpy as np
 from dfs_rl.utils.data import find_weeks, load_week_folder
 from dfs_rl.arena import run_tournament
 from backtesting.backtester import _find_points_col
-from dfs_rl.utils.historical_outcomes import attach_historical_outcomes
+from dfs_rl.utils.historical_outcomes import (
+    attach_historical_outcomes,
+    standardize_scoreboard_cols,
+)
 
 import os
 
@@ -43,6 +46,7 @@ if st.button("Run Arena"):
         st.success("Done")
     if bundle["contest_files"]:
         board = pd.read_csv(bundle["contest_files"][0])
+        board = standardize_scoreboard_cols(board)
         pts_col_board = _find_points_col(board)
         pts_col_df = _find_points_col(df)
         if pts_col_board and pts_col_df:
@@ -51,22 +55,33 @@ if st.button("Run Arena"):
             arr = scores.fillna(0).to_numpy()
             ranks = np.searchsorted(-s.to_numpy(), -arr, side="left") + 1
             df["contest_rank"] = ranks
-            df["field_size"] = (
-                int(board["maximumEntries"].iloc[0])
-                if "maximumEntries" in board.columns
-                else len(s)
-            )
-            if "maximumEntriesPerUser" in board.columns:
-                df["entries_per_user"] = int(board["maximumEntriesPerUser"].iloc[0])
-            if "entryFee" in board.columns:
-                df["entry_fee"] = board["entryFee"].iloc[0]
-            for cname in ["Contest Name", "contest_name", "Contest name", "contestName"]:
-                if cname in board.columns:
-                    df["contest_name"] = board[cname].iloc[0]
-                    break
+            field_size_val = int(board["field_size"].iloc[0]) if "field_size" in board.columns else len(s)
+            df["field_size"] = field_size_val
+            if "entries_per_user" in board.columns:
+                df["entries_per_user"] = int(board["entries_per_user"].iloc[0])
+            if "entry_fee" in board.columns:
+                df["entry_fee"] = board["entry_fee"].iloc[0]
+            if "contest_name" in board.columns:
+                df["contest_name"] = board["contest_name"].iloc[0]
             if "amount_won" in board.columns:
                 payouts = board[["rank", "amount_won"]].drop_duplicates("rank")
                 df = df.merge(payouts, left_on="contest_rank", right_on="rank", how="left")
+                na_mask = df["amount_won"].isna()
+                if na_mask.any() and "score" in board.columns:
+                    sb = board.sort_values("score", ascending=False)[["score", "amount_won"]]
+                    b_scores = sb["score"].to_numpy()
+                    b_payouts = sb["amount_won"].to_numpy()
+                    lineup_scores = df.loc[na_mask, pts_col_df].fillna(0).to_numpy()
+                    idx = np.searchsorted(-b_scores, -lineup_scores, side="right") - 1
+                    idx[idx < 0] = 0
+                    df.loc[na_mask, "amount_won"] = b_payouts[idx]
+                    df.loc[na_mask, "field_size"] = field_size_val
+                    if "entries_per_user" in board.columns:
+                        df.loc[na_mask, "entries_per_user"] = int(board["entries_per_user"].iloc[0])
+                    if "entry_fee" in board.columns:
+                        df.loc[na_mask, "entry_fee"] = board["entry_fee"].iloc[0]
+                    if "contest_name" in board.columns:
+                        df.loc[na_mask, "contest_name"] = board["contest_name"].iloc[0]
 
     selected_date_iso = choice[-10:]
     HIST_ROOT = "data/historical"

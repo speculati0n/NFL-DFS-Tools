@@ -36,7 +36,40 @@ ALIASES = {
     'entries_per_user': ['maximumEntriesPerUser','maxEntriesPerUser','entries_per_user'],
     'entry_fee': ['entryFee','entry_fee','Entry Fee'],
     'contest_name': ['Contest Name','contest_name','Contest name','contestName'],
+    'score': [
+        'score',
+        'Score',
+        'dk_points',
+        'DK Points',
+        'points',
+        'Points',
+        'lineup_points',
+        'lineupPoints',
+        'FPTS',
+        'fpts',
+        'total_points',
+        'totalPoints',
+    ],
 }
+
+
+def standardize_scoreboard_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of *df* with common leaderboard columns renamed.
+
+    The :data:`ALIASES` map above contains canonical column names and a list of
+    possible variants seen in different data sources.  This helper applies the
+    mapping so that downstream code can rely on columns like ``score``,
+    ``rank``, ``amount_won``, ``field_size`` and friends regardless of the
+    original header names.
+    """
+
+    ren = {}
+    for canonical, opts in ALIASES.items():
+        for c in opts:
+            if c in df.columns:
+                ren[c] = canonical
+                break
+    return df.rename(columns=ren) if ren else df
 
 def _ensure_cols(df: pd.DataFrame) -> pd.DataFrame:
     # normalize aliases
