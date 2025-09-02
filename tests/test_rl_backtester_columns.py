@@ -10,8 +10,8 @@ from backtesting.backtester import backtest_week
 
 
 def test_arena_includes_projection_columns():
-    week_dir = os.path.join("data", "historical", "2019", "2019-09-22")
-    bundle = load_week_folder(week_dir)
+    week = "2019-09-22"
+    bundle = load_week_folder(week)
     pool = bundle["projections"]
     df = run_tournament(pool, n_lineups_per_agent=1, train_pg=False)
     assert "projections_proj" in df.columns
@@ -19,16 +19,16 @@ def test_arena_includes_projection_columns():
 
 
 def test_backtester_includes_projection_columns():
-    week_dir = os.path.join("data", "historical", "2019", "2019-09-22")
-    res = backtest_week(week_dir, n_lineups_per_agent=1)
+    week = "2019-09-22"
+    res = backtest_week(week, n_lineups_per_agent=1)
     gen = res["generated"]
     assert "projections_proj" in gen.columns
     assert "projections_actpts" in gen.columns
 
 
 def test_backtester_uses_score_for_rank_and_metadata():
-    week_dir = os.path.join("data", "historical", "2019", "2019-09-22")
-    res = backtest_week(week_dir, n_lineups_per_agent=1)
+    week = "2019-09-22"
+    res = backtest_week(week, n_lineups_per_agent=1)
     gen = res["generated"]
     assert "contest_rank" in gen.columns
     assert gen["contest_rank"].notna().any()

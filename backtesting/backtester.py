@@ -35,8 +35,8 @@ def _find_points_col(df: pd.DataFrame) -> Optional[str]:
             return lower_map[name.lower()]
     return None
 
-def backtest_week(week_dir: str, n_lineups_per_agent: int = 150) -> Dict[str, pd.DataFrame]:
-    bundle = load_week_folder(week_dir)
+def backtest_week(week: str, n_lineups_per_agent: int = 150) -> Dict[str, pd.DataFrame]:
+    bundle = load_week_folder(week)
     pool = bundle["projections"].copy()
     gen = run_tournament(pool, n_lineups_per_agent=n_lineups_per_agent, train_pg=False)
 
