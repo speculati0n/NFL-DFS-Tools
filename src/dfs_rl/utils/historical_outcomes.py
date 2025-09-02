@@ -113,12 +113,19 @@ def attach_historical_outcomes(
 
     g['__lineup_key'] = _lineup_key(g)
 
+
     # Compose the columns we will expose
     expose_cols = ['contest_rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','matches_found']
 
+    # If we have no historical data, make sure the expected columns exist but do
+    # not clobber any pre-existing values (e.g. an Arena run may already have
+    # contest ranks from the full contest CSV).
     if hist.empty:
         for c in expose_cols:
-            g[c] = pd.NA
+            if c not in g.columns:
+                g[c] = 0 if c == 'matches_found' else pd.NA
+        if 'matches_found' in g.columns:
+            g['matches_found'] = g['matches_found'].fillna(0)
         return g.drop(columns=['__lineup_key'])
 
     has_cid = 'contest_id' in g.columns and 'contest_id' in hist.columns
@@ -127,9 +134,7 @@ def attach_historical_outcomes(
         merged = g.merge(
             hist[['contest_id','__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name']],
             on=['contest_id','__lineup_key'],
-            how='left'
-        )
-        merged = merged.rename(columns={'rank':'contest_rank'})
+
         merged['matches_found'] = (~merged['contest_rank'].isna()).astype(int)
         return merged.drop(columns=['__lineup_key'])
 
@@ -137,19 +142,20 @@ def attach_historical_outcomes(
     tmp = g.merge(
         hist[['__lineup_key','rank','amount_won','field_size','entries_per_user','entry_fee','contest_name','contest_id']],
         on='__lineup_key',
-        how='left'
+        how='left',
+        suffixes=('', '_hist')
     )
 
     def _reduce(group):
-        best_rank = group['rank'].min() if group['rank'].notna().any() else pd.NA
-        amt = group['amount_won'].fillna(0).sum() if group['amount_won'].notna().any() else pd.NA
-        fs = group['field_size'].dropna().max() if 'field_size' in group and group['field_size'].notna().any() else pd.NA
-        epu = group['entries_per_user'].dropna().max() if 'entries_per_user' in group and group['entries_per_user'].notna().any() else pd.NA
-        fee = group['entry_fee'].dropna().max() if 'entry_fee' in group and group['entry_fee'].notna().any() else pd.NA
+        best_rank = group['rank_hist'].min() if group['rank_hist'].notna().any() else pd.NA
+        amt = group['amount_won_hist'].fillna(0).sum() if group['amount_won_hist'].notna().any() else pd.NA
+        fs = group['field_size_hist'].dropna().max() if group['field_size_hist'].notna().any() else pd.NA
+        epu = group['entries_per_user_hist'].dropna().max() if group['entries_per_user_hist'].notna().any() else pd.NA
+        fee = group['entry_fee_hist'].dropna().max() if group['entry_fee_hist'].notna().any() else pd.NA
         # prefer the most frequent contest_name in ties
-        cname = group['contest_name'].dropna()
+        cname = group['contest_name_hist'].dropna()
         cname = cname.mode().iat[0] if len(cname) else pd.NA
-        matches = group['contest_id'].nunique(dropna=True)
+        matches = group['contest_id_hist'].nunique(dropna=True)
         return pd.Series({
             'contest_rank': best_rank,
             'amount_won': amt,
@@ -165,5 +171,4 @@ def attach_historical_outcomes(
                  .apply(_reduce)
                  .reset_index()
                  .set_index('index'))
-    out = g.join(reduced, how='left').drop(columns=['__lineup_key'])
-    return out
+
