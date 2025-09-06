@@ -40,3 +40,16 @@ def test_optimizer_handles_players_removed_from_player_dict():
 
     # Should not raise KeyError
     opt.optimize()
+
+
+def test_optimizer_skips_stack_when_opponent_missing():
+    opt = NFL_Optimizer(site="dk", num_lineups=1, num_uniques=1)
+
+    team = next(iter(opt.players_by_team.keys()))
+    opp_team = opt.players_by_team[team]["QB"][0]["Opponent"]
+
+    if opp_team in opt.players_by_team:
+        del opt.players_by_team[opp_team]
+
+    # Should not raise KeyError when opponent team is missing
+    opt.optimize()
