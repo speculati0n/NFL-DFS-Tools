@@ -2756,14 +2756,14 @@ class NFL_GPP_Simulator:
 
         return lineups_path, exposure_path, stack_path
 
-def _normalize_positions_in_tables(self):
-    def _norm(p):
-        p = str(p or "").upper().strip()
-        return "DST" if p in ("D","DEF") else p
-    try:
-        if hasattr(self, "player_dict"):
-            for _k, _rec in self.player_dict.items():
-                if isinstance(_rec, dict) and "Position" in _rec:
-                    _rec["Position"] = _norm(_rec.get("Position"))
-    except Exception:
-        pass
+    def _normalize_positions_in_tables(self):
+        def _norm(p):
+            p = str(p or "").upper().strip()
+            return "DST" if p in ("D","DEF") else p
+        try:
+            if hasattr(self, "player_dict"):
+                for _k, _rec in self.player_dict.items():
+                    if isinstance(_rec, dict) and "Position" in _rec:
+                        _rec["Position"] = _norm(_rec.get("Position"))
+        except Exception:
+            pass
