@@ -989,59 +989,63 @@ class NFL_Optimizer:
             f"../output/{self.site}_optimal_lineups_{formatted_timestamp}.csv"
         )
         out_path = os.path.join(os.path.dirname(__file__), filename_out)
-        with open(out_path, "w") as f:
-            header = (
-                "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Fpts Used,Fpts Act,Ceiling,"
-                "Own. Sum,Own. Product,STDDEV,Players vs DST,Stack\n"
+
+        # BEGIN: patched CSV writer
+        from lineup_writer_patch import Player, write_lineup_csv
+
+        def _to_player(key):
+            data = self.player_dict[key]
+            name = (
+                f"{data['Name']} ({data['ID']})"
+                if self.site == "dk"
+                else f"{data['ID']}:{data['Name']}"
             )
-            f.write(header)
-            for x, fpts_used in sorted_lineups:
-                stack_str = self.construct_stack_string(x)
+            pos = data["Position"]
+            if pos == "DST":
+                pos = "D"
+            pl = Player(
+                name=name,
+                pos=pos,
+                team=data.get("Team", ""),
+                salary=float(data["Salary"]),
+                proj=float(data["Fpts"]),
+                act=float(data.get("ActPts", 0.0)),
+                ceil=float(data.get("Ceiling", 0.0)),
+                own=float(data.get("Ownership", 0.0)),
+                stddev=float(data.get("StdDev", 0.0)),
+            )
+            pl.key = key
+            pl.opp = data.get("Opponent", "")
+            return pl
 
-                salary = sum(self.player_dict[player]["Salary"] for player in x)
-                fpts_p = sum(self.player_dict[player]["Fpts"] for player in x)
-                act_p = sum(self.player_dict[player].get("ActPts", 0) for player in x)
-                own_s = sum(self.player_dict[player]["Ownership"] for player in x)
-                own_p = np.prod(
-                    [self.player_dict[player]["Ownership"] / 100 for player in x]
-                )
-                ceil = sum([self.player_dict[player]["Ceiling"] for player in x])
-                stddev = sum([self.player_dict[player]["StdDev"] for player in x])
+        all_lineups_as_players = [[_to_player(p) for p in x] for x, _ in sorted_lineups]
 
-                dst_opponents = {
-                    self.player_dict[p].get("Opponent")
-                    for p in x
-                    if self.player_dict[p]["Position"] == "DST"
-                    and self.player_dict[p].get("Opponent")
-                }
-                players_vs_def = sum(
-                    1
-                    for p in x
-                    if self.player_dict[p]["Position"] != "DST"
-                    and self.player_dict[p].get("Team") in dst_opponents
-                )
-                if self.site == "dk":
-                    player_fields = [
-                        f"{self.player_dict[p]['Name']} ({self.player_dict[p]['ID']})" for p in x
-                    ]
-                else:
-                    player_fields = [
-                        f"{self.player_dict[p]['ID']}:{self.player_dict[p]['Name']}" for p in x
-                    ]
-                fields = player_fields + [
-                    salary,
-                    round(fpts_p, 2),
-                    round(fpts_used, 2),
-                    round(act_p, 2),
-                    ceil,
-                    own_s,
-                    own_p,
-                    stddev,
-                    players_vs_def,
-                    stack_str,
-                ]
-                lineup_str = ",".join(map(str, fields))
-                f.write(f"{lineup_str}\n")
+        def _stddev_fn(L):
+            return sum(getattr(p, "stddev", 0.0) for p in L)
+
+        def _players_vs_dst_fn(L):
+            dst_opponents = {
+                getattr(p, "opp", "")
+                for p in L
+                if (p.pos or "").upper() == "DST" and getattr(p, "opp", "")
+            }
+            return sum(
+                1
+                for p in L
+                if (p.pos or "").upper() != "DST" and p.team in dst_opponents
+            )
+
+        def _stack_str_fn(L):
+            return self.construct_stack_string([getattr(p, "key") for p in L])
+
+        write_lineup_csv(
+            all_lineups_as_players,
+            out_path=out_path,
+            stddev_fn=_stddev_fn,
+            players_vs_dst_fn=_players_vs_dst_fn,
+            stack_str_fn=_stack_str_fn,
+        )
+        # END: patched CSV writer
 
         stack_path = None
         if self.stack_exposure_df is not None:
