@@ -958,6 +958,12 @@ class NFL_Optimizer:
 
     def output(self):
         print("Lineups done generating. Outputting.")
+        # Normalize Position field in player_dict (D/DEF -> DST) before ordering
+        for _k, _rec in self.player_dict.items():
+            p = str(_rec.get("Position","" )).upper()
+            if p in ("D","DEF"):
+                _rec["Position"] = "DST"
+
 
         sorted_lineups = []
         for lineup, fpts_used in self.lineups:
@@ -1001,8 +1007,8 @@ class NFL_Optimizer:
                 else f"{data['ID']}:{data['Name']}"
             )
             pos = data["Position"]
-            if pos == "DST":
-                pos = "D"
+            if pos in ("D", "DEF"):
+                pos = "DST"
             pl = Player(
                 name=name,
                 pos=pos,
@@ -1063,34 +1069,38 @@ class NFL_Optimizer:
         positional_order = ["QB", "RB", "RB", "WR", "WR", "WR", "TE", "FLEX", "DST"]
         final_lineup = []
 
+        def _norm(p):
+            p = str(p or "").upper().strip()
+            return "DST" if p in ("D","DEF") else p
+
         # Sort players based on their positional order
         for position in positional_order:
             if position != "FLEX":
                 eligible_players = [
                     player
                     for player in copy_lineup
-                    if self.player_dict[player]["Position"] == position
+                    if _norm(self.player_dict[player]["Position"]) == position
                 ]
                 if eligible_players:
                     eligible_player = eligible_players[0]
                     final_lineup.append(eligible_player)
                     copy_lineup.remove(eligible_player)
                 else:
-                    print(f"No players found with position: {position}")
-                    # Handle the case here (perhaps append a placeholder or skip appending)
+                    final_lineup.append(None)
             else:
                 eligible_players = [
                     player
                     for player in copy_lineup
-                    if self.player_dict[player]["Position"] in ["RB", "WR", "TE"]
+                    if _norm(self.player_dict[player]["Position"]) in ["RB", "WR", "TE"]
                 ]
                 if eligible_players:
                     eligible_player = eligible_players[0]
                     final_lineup.append(eligible_player)
                     copy_lineup.remove(eligible_player)
                 else:
-                    print(f"No players found for FLEX position")
-                    # Handle the case here (perhaps append a placeholder or skip appending)
+                    final_lineup.append(None)
+
+        final_lineup = [p for p in final_lineup if p is not None]
         return final_lineup
 
     def construct_stack_string(self, lineup):

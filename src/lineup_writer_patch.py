@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# src/lineup_writer_patch.py
+# Robust CSV writer for lineups with enforced DST presence and unique headers.
 from dataclasses import dataclass
 from typing import List, Optional, Callable, Iterable
 import csv, os
@@ -14,27 +17,39 @@ class Player:
     own: float = 0.0
     stddev: float = 0.0
 
+def _norm_pos(p: str) -> str:
+    p = (p or "").upper().strip()
+    if p in ("D", "DEF"):
+        return "DST"
+    return p
+
 def _slot_str(p: Optional[Player]) -> str:
     return "" if p is None else f"{p.name}"
 
 def _extract_slots(players: Iterable[Player]):
-    by_pos = {"QB": [], "RB": [], "WR": [], "TE": [], "DST": []}
+    # Normalize positions up front
+    normed = []
     for p in players:
-        pos = (p.pos or "").upper().replace("DEF", "DST").replace("D", "DST")
+        p.pos = _norm_pos(p.pos)
+        normed.append(p)
+
+    by_pos = {"QB": [], "RB": [], "WR": [], "TE": [], "DST": []}
+    for p in normed:
+        pos = _norm_pos(p.pos)
         if pos in by_pos:
             by_pos[pos].append(p)
 
     qb  = by_pos["QB"][0]  if by_pos["QB"]  else None
     dst = by_pos["DST"][0] if by_pos["DST"] else None
 
-    # choose deterministic order for slotting
+    # deterministic order for slotting
     prio = {"QB":0,"RB":1,"WR":2,"TE":3}
-    skill = [p for p in players if (p.pos or "").upper().replace("DEF","DST").replace("D","DST") != "DST"]
-    skill.sort(key=lambda x: (prio.get((x.pos or "").upper(), 9), -float(x.salary), x.name))
+    skill = [p for p in normed if _norm_pos(p.pos) != "DST"]
+    skill.sort(key=lambda x: (prio.get(_norm_pos(x.pos), 9), -float(x.salary or 0.0), x.name or ""))
 
-    rb = [p for p in skill if (p.pos or "").upper()=="RB"][:2]
-    wr = [p for p in skill if (p.pos or "").upper()=="WR"][:3]
-    te = [p for p in skill if (p.pos or "").upper()=="TE"][:1]
+    rb = [p for p in skill if _norm_pos(p.pos) == "RB"][:2]
+    wr = [p for p in skill if _norm_pos(p.pos) == "WR"][:3]
+    te = [p for p in skill if _norm_pos(p.pos) == "TE"][:1]
 
     used_ids = {id(x) for x in ([qb, dst] + rb + wr + te) if x is not None}
     flex = next((p for p in skill if id(p) not in used_ids), None)
@@ -46,12 +61,12 @@ def _extract_slots(players: Iterable[Player]):
     }
 
 def _own_sum(players: Iterable[Player]) -> float:
-    return sum(float(p.own or 0.0) for p in players)
+    return sum(float(getattr(p, "own", 0.0) or 0.0) for p in players)
 
 def _own_prod(players: Iterable[Player]) -> float:
     prod = 1.0
     for p in players:
-        prod *= max(1e-6, (float(p.own or 0.0)/100.0))
+        prod *= max(1e-6, (float(getattr(p, "own", 0.0) or 0.0) / 100.0))
     return prod
 
 def _sum(players: Iterable[Player], attr: str) -> float:
@@ -77,7 +92,10 @@ def write_lineup_csv(
         for i, lineup in enumerate(lineups, start=1):
             slots = _extract_slots(lineup)
             nine = [slots["QB"], slots["RB1"], slots["RB2"], slots["WR1"], slots["WR2"], slots["WR3"], slots["TE"], slots["FLEX"], slots["DST"]]
-            assert all(p is not None for p in nine), f"[lineup {i}] Incomplete lineup or missing DST."
+            if not all(p is not None for p in nine):
+                missing = [k for k, v in slots.items() if v is None]
+                raise AssertionError(f"[lineup {i}] Incomplete lineup or missing DST. Missing: {missing}. Lineup POS: {[getattr(p,'pos',None) for p in lineup]}")
+
             total_salary = _sum(nine, "salary")
             total_proj   = _sum(nine, "proj")
             total_act    = _sum(nine, "act")
