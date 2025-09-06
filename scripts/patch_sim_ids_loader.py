@@ -17,7 +17,7 @@ SIM = ROOT / "src" / "nfl_gpp_simulator.py"
 NORMALIZE_HELPER = r"""
 def _norm_pos(p):
     p = str(p or "").upper().strip()
-    return "DST" if p in ("D","DEF","DS","D/ST") else p
+
 """
 
 FLEX_IMPORT = r"from player_ids_flex import load_player_ids_flex, dst_id_by_team"
@@ -60,10 +60,6 @@ def load_player_ids(self, path):
             pos  = _norm_pos(r["Position"])
             team = str(r.get("TeamAbbrev","") or "").upper()
 
-            self.id_name_dict[pid] = name
-            self.name_pos_to_id[(name.lower(), pos)] = pid
-            self.id_position_dict[pid] = pos
-            self.id_teamabbrev_dict[pid] = team
         return df
 '''
 

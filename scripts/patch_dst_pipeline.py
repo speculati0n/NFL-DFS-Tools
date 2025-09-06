@@ -16,7 +16,8 @@ def _normalize_pos_key_and_value(rec):
     # Ensure dict has 'Position' key with normalized value (D/DEF/DS/D/ST->DST).
     def _norm(p):
         p = str(p or "").strip().upper()
-        return "DST" if p in ("D","DEF","DS","D/ST") else p
+        p = re.sub(r"[\[\]\"']", "", p)
+        return "DST" if p in ("D","DEF","DS","D/ST","DST") else p
     # Source may have 'pos' or 'Position'
     if "Position" in rec:
         rec["Position"] = _norm(rec.get("Position"))
