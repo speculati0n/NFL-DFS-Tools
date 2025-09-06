@@ -86,6 +86,8 @@ class NFL_Optimizer:
             for row in reader:
                 if self.site == "dk":
                     position = row["position"]
+                    if position in ("D", "DEF"):
+                        position = "DST"
                     team = row.get("team") or row.get("teamabbrev")
                     names = set()
                     for col in ["displayname", "firstname", "lastname", "shortname"]:
@@ -261,10 +263,7 @@ class NFL_Optimizer:
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
-                if (
-                    float(row["projections_proj"]) < self.projection_minimum
-                    and row["pos"] != "DST"
-                ):
+                if (float(row["projections_proj"]) < self.projection_minimum) and position != "DST":
                     continue
                 self.player_dict[(player_name, position, team)] = {
                     "Fpts": fpts,
@@ -298,6 +297,9 @@ class NFL_Optimizer:
                 )
 
     def optimize(self, progress_callback=None):
+        # Guard: Ensure DST pool exists before building variables
+        if not any(v.get("Position") == "DST" for v in self.player_dict.values()):
+            raise AssertionError("No DST candidates after ingest & ID match. Check projections pos (D/DEF->DST) and player_ids mapping.")
         # Setup our linear programming equation - https://en.wikipedia.org/wiki/Linear_programming
         # We will use PuLP as our solver - https://coin-or.github.io/pulp/
 
