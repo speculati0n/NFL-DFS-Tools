@@ -17,8 +17,7 @@ SIM = ROOT / "src" / "nfl_gpp_simulator.py"
 NORMALIZE_HELPER = r"""
 def _norm_pos(p):
     p = str(p or "").upper().strip()
-    p = re.sub(r"[\[\]\"']", "", p)
-    return "DST" if p in ("D","DEF","DS","D/ST","DST") else p
+
 """
 
 FLEX_IMPORT = r"from player_ids_flex import load_player_ids_flex, dst_id_by_team"
@@ -60,32 +59,6 @@ def load_player_ids(self, path):
             name = str(r["Name"]).strip()
             pos  = _norm_pos(r["Position"])
             team = str(r.get("TeamAbbrev","") or "").upper()
-            key = re.sub(r"\s+", " ", re.sub(r"\.", "", name)).replace("-", "#").lower()
-
-            self.id_name_dict[pid] = name
-            self.name_pos_to_id[(key, pos)] = pid
-            self.id_position_dict[pid] = pos
-            self.id_teamabbrev_dict[pid] = team
-        # Match IDs onto existing player_dict entries
-        import re
-        for key, rec in list(self.player_dict.items()):
-            name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", rec.get("Name", "")).strip()).replace("-", "#").lower()
-            pos = rec.get("Position")
-            if isinstance(pos, list):
-                pos = pos[0] if pos else ""
-            pos = _norm_pos(pos)
-            pid = self.name_pos_to_id.get((name_key, pos))
-            if pid:
-                rec["ID"] = pid
-                if not rec.get("TeamAbbrev"):
-                    rec["TeamAbbrev"] = self.id_teamabbrev_dict.get(pid, "")
-            elif pos == "DST":
-                team = str(rec.get("TeamAbbrev") or "").upper()
-                if not team and isinstance(key, tuple) and len(key) >= 3:
-                    team = str(key[2]).upper()
-                pid_team = dst_id_by_team(self._player_ids_df, team)
-                if pid_team:
-                    rec["ID"] = str(pid_team)
 
         return df
 '''
