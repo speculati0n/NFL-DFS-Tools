@@ -503,6 +503,12 @@ class NFL_Optimizer:
 
                         opp_team = pos_key_players[0]["Opponent"]
 
+                        if (
+                            stack_type in ["opp-team", "same-game"]
+                            and opp_team not in self.players_by_team
+                        ):
+                            continue
+
                         for pos_key_player in pos_key_players:
                             stack_players = []
                             if stack_type == "same-team":
@@ -608,6 +614,12 @@ class NFL_Optimizer:
 
                         opp_team = opp_team[0]["Opponent"]
                         if team in excluded_teams:
+                            continue
+
+                        if (
+                            stack_type in ["opp-team", "same-game"]
+                            and opp_team not in self.players_by_team
+                        ):
                             continue
 
                         limit_players = []
