@@ -20,7 +20,7 @@ def patch_file(path: Path):
         r'(\n\s*sorted_lineups\s*=\s*\[\])',
         '\n        # Normalize Position field in player_dict (D/DEF -> DST) before ordering\n'
         '        for _k, _rec in self.player_dict.items():\n'
-        '            p = str(_rec.get("Position","" )).upper()\n'
+        '            p = str(_rec.get("Position","")).upper()\n'
         '            if p in ("D","DEF"):\n'
         '                _rec["Position"] = "DST"\n'
         r'\1',
@@ -94,6 +94,30 @@ def main():
         print("Could not locate src/nfl_optimizer.py. Run this from repo root.")
         sys.exit(1)
     patch_file(p)
+
+    # If simulator exists, apply similar patch to ensure it normalizes POS before run()
+    sim = repo_root / "src" / "nfl_gpp_simulator.py"
+    if sim.exists():
+        # Best-effort normalization injection for simulator
+        src = sim.read_text(encoding="utf-8")
+        if "_normalize_positions_in_tables" not in src:
+            src += """
+def _normalize_positions_in_tables(self):
+    def _norm(p):
+        p = str(p or "").upper().strip()
+        return "DST" if p in ("D","DEF") else p
+    try:
+        if hasattr(self, "player_dict"):
+            for _k, _rec in self.player_dict.items():
+                if isinstance(_rec, dict) and "Position" in _rec:
+                    _rec["Position"] = _norm(_rec.get("Position"))
+    except Exception:
+        pass
+"""
+        # inject call at start of run()
+        src = re.sub(r'(def\s+run\s*\(self[^\)]*\)\s*:\s*\n)', r'\1        self._normalize_positions_in_tables()\n', src, count=1)
+        sim.write_text(src, encoding="utf-8")
+        print(f"✅ Patched {sim}")
 
 if __name__ == "__main__":
     main()
