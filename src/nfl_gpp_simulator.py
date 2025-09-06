@@ -1,4 +1,18 @@
 import csv
+
+def _norm_pos(p):
+    p = str(p or "").upper().strip()
+    return "DST" if p in ("D","DEF","DS","D/ST") else p
+
+def _sf(x, default=0.0):
+    try:
+        if x is None: return float(default)
+        if isinstance(x, (int, float)): return float(x)
+        s = str(x).strip()
+        if s == "" or s.lower() in ("nan", "none"): return float(default)
+        return float(s)
+    except Exception:
+        return float(default)
 from player_ids_flex import load_player_ids_flex, dst_id_by_team
 import json
 import math
@@ -10,10 +24,6 @@ import pulp as plp
 import multiprocessing as mp
 import pandas as pd
 import statistics
-
-def _norm_pos(p):
-    p = str(p or "").upper().strip()
-
 
 # import fuzzywuzzy
 import itertools
@@ -117,6 +127,21 @@ class NFL_GPP_Simulator:
         projection_path = get_data_path(site, self.config["projection_path"])
         self.load_projections(projection_path)
 
+
+        # --- Begin: normalize projections table (pos/team) ---
+        try:
+            if hasattr(self, "players_df") and self.players_df is not None:
+                if "pos" in self.players_df.columns:
+                    self.players_df["pos"] = self.players_df["pos"].apply(_norm_pos)
+                if "Position" in self.players_df.columns:
+                    self.players_df["Position"] = self.players_df["Position"].apply(_norm_pos)
+                if "team" in self.players_df.columns:
+                    self.players_df["team"] = (
+                        self.players_df["team"].astype(str).str.upper().str.strip().replace({"LA":"LAR"})
+                    )
+        except Exception:
+            pass
+        # --- End: normalize projections table ---
         player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
 
@@ -218,6 +243,130 @@ class NFL_GPP_Simulator:
     # In order to make reasonable tournament lineups, we want to be close enough to the optimal that
     # a person could realistically land on this lineup. Skeleton here is taken from base `mlb_optimizer.py`
     def get_optimal(self):
+
+        # --- Begin: clean numeric fields + DST backfill before building LP ---
+        try:
+            # 1) normalize Position/TeamAbbrev keys inside player_dict
+            for _k, _rec in list(self.player_dict.items()):
+                # unify Position with DST canonicalization
+                if "Position" in _rec:
+                    _rec["Position"] = _norm_pos(_rec.get("Position"))
+                elif "pos" in _rec:
+                    _rec["Position"] = _norm_pos(_rec.get("pos"))
+                # team to uppercase key TeamAbbrev
+                if "TeamAbbrev" not in _rec:
+                    team_guess = _rec.get("TeamAbbrev") or _rec.get("Team") or _rec.get("TeamAbbreviation") or ""
+                    _rec["TeamAbbrev"] = str(team_guess or "").upper()
+
+            # 2) backfill DST IDs by team if missing
+            try:
+                from player_ids_flex import load_player_ids_flex
+                pid_path = getattr(self, "player_ids_path", "data/player_ids.csv")
+                _pid_df = load_player_ids_flex(pid_path)
+            except Exception:
+                _pid_df = None
+
+            def _dst_id_by_team_lookup(team):
+                team = str(team or "").upper().strip()
+                if _pid_df is None or not team:
+                    return None
+                try:
+                    row = _pid_df[
+                        (_pid_df["Position"]=="DST") &
+                        (_pid_df["TeamAbbrev"].astype(str).str.upper()==team)
+                    ].iloc[0]
+                    return int(row["ID"])
+                except Exception:
+                    return None
+
+            for _k, _rec in list(self.player_dict.items()):
+                if _rec.get("Position") == "DST":
+                    _id_raw = _rec.get("ID")
+                    try:
+                        _id_ok = int(str(_id_raw).replace(",",""))
+                    except Exception:
+                        _id_ok = 0
+                    if not _id_ok:
+                        t = _rec.get("TeamAbbrev")
+                        if not t and hasattr(self, "players_df") and {"name","team"}.issubset(set(self.players_df.columns)):
+                            try:
+                                nm = str(_rec.get("Name","")).strip().lower()
+                                t = str(self.players_df.loc[self.players_df["name"].str.lower()==nm, "team"].iloc[0]).upper()
+                            except Exception:
+                                t = ""
+                        pid = _dst_id_by_team_lookup(t)
+                        if pid:
+                            _rec["ID"] = pid
+
+            # 3) coerce numerics used by the LP
+            # Try to pick projection from common keys, default 0.0
+            PROJ_KEYS = ("Projection","projections_proj","proj","fpts_proj","projected_points","fpts","points")
+            SAL_KEYS  = ("Salary","salary","sal","cost","dk_salary")
+            OWN_KEYS  = ("own","ownership","proj_own","ownership_proj")
+            CEIL_KEYS = ("ceil","ceiling","fpts_ceil","projection_ceil")
+            STD_KEYS  = ("stddev","stdev","sd","projection_std","fpts_std")
+
+            for _k, _rec in list(self.player_dict.items()):
+                # projection
+                _p = None
+                for kk in PROJ_KEYS:
+                    if kk in _rec and _rec[kk] not in (None, ""):
+                        _p = _rec[kk]; break
+                if _p is None and hasattr(self, "players_df") and "name" in self.players_df.columns:
+                    try:
+                        nm = str(_rec.get("Name","")).strip().lower()
+                        _row = self.players_df.loc[self.players_df["name"].str.lower()==nm]
+                        if not _row.empty:
+                            for alt in PROJ_KEYS:
+                                if alt in _row.columns:
+                                    _p = _row[alt].iloc[0]; break
+                    except Exception:
+                        pass
+                _rec["Projection"] = _sf(_p, 0.0)
+
+                # salary
+                _s = None
+                for kk in SAL_KEYS:
+                    if kk in _rec and _rec[kk] not in (None, ""):
+                        _s = _rec[kk]; break
+                _rec["Salary"] = _sf(_s, 0.0)
+
+                # ownership (optional)
+                _o = None
+                for kk in OWN_KEYS:
+                    if kk in _rec and _rec[kk] not in (None, ""):
+                        _o = _rec[kk]; break
+                _rec["Own"] = _sf(_o, 0.0)
+
+                # ceiling/stddev (optional)
+                _c = None
+                for kk in CEIL_KEYS:
+                    if kk in _rec and _rec[kk] not in (None, ""):
+                        _c = _rec[kk]; break
+                _rec["Ceil"] = _sf(_c, 0.0)
+
+                _sd = None
+                for kk in STD_KEYS:
+                    if kk in _rec and _rec[kk] not in (None, ""):
+                        _sd = _rec[kk]; break
+                _rec["STDDEV"] = _sf(_sd, 0.0)
+
+            # 4) diagnostics + guard: ensure no None leaked into Projection
+            bad = [(_k, _rec.get("Name",""), _rec.get("Position","")) for _k,_rec in self.player_dict.items()
+                   if not isinstance(_rec.get("Projection"), (int,float))]
+            if bad:
+                raise AssertionError(f"Simulator: non-numeric Projection for {len(bad)} players (e.g., {bad[:3]}).")
+            # ensure we actually have at least one DST in the pool
+            pos_counts = {}
+            for _rec in self.player_dict.values():
+                p = str(_rec.get("Position","")).upper()
+                pos_counts[p] = pos_counts.get(p, 0) + 1
+            if pos_counts.get("DST",0) <= 0:
+                raise AssertionError(f"Simulator: no DST players after normalization/backfill. POS counts: {pos_counts}")
+        except Exception as _e:
+            # Surface rich context to Streamlit; the main try will bubble this up
+            raise
+        # --- End: clean numeric fields + DST backfill ---
         # print(s['Name'],s['ID'])
         # print(self.player_dict)
         problem = plp.LpProblem("NFL", plp.LpMaximize)
