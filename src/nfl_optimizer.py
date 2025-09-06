@@ -14,6 +14,7 @@ from random import shuffle, choice
 from utils import get_data_path, get_config_path
 from selection_exposures import select_lineups, report_lineup_exposures
 from stack_metrics import analyze_lineup
+from player_ids_flex import load_player_ids_flex, dst_id_by_team
 
 
 class NFL_Optimizer:
@@ -64,6 +65,35 @@ class NFL_Optimizer:
 
         player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
+        # --- Begin: DST ID backfill by team if name matching failed ---
+        try:
+            pid_df = getattr(self, "_player_ids_df", None)
+            for k, rec in list(self.player_dict.items()):
+                # Normalize Position
+                if str(rec.get("Position", "")).upper() in ("D", "DEF"):
+                    rec["Position"] = "DST"
+                if rec.get("Position") == "DST" and (not rec.get("ID") or int(str(rec.get("ID", 0)).replace(",", "") or 0) == 0):
+                    # get team from record or projections DF
+                    team = str(
+                        rec.get("TeamAbbrev") or
+                        rec.get("Team") or
+                        rec.get("TeamAbbreviation") or
+                        ""
+                    ).upper()
+                    if not team:
+                        try:
+                            nm = str(rec.get("Name", "")).strip().lower()
+                            team = str(self.players_df.loc[self.players_df["name"].str.lower() == nm, "team"].iloc[0]).upper()
+                        except Exception:
+                            team = ""
+                    if pid_df is not None and team:
+                        pid = dst_id_by_team(pid_df, team)
+                        if pid:
+                            rec["ID"] = int(pid)
+        except Exception:
+            pass
+        # --- End: DST ID backfill ---
+
         self.assertPlayerDict()
 
     def flatten(self, list):
@@ -80,66 +110,63 @@ class NFL_Optimizer:
             self.config = json.load(json_file)
 
     # Load player IDs for exporting
-    def load_player_ids(self, path):
-        with open(path, encoding="utf-8-sig") as file:
-            reader = csv.DictReader(self.lower_first(file))
-            for row in reader:
-                if self.site == "dk":
-                    position = row["position"]
-                    if position in ("D", "DEF"):
-                        position = "DST"
-                    team = row.get("team") or row.get("teamabbrev")
-                    names = set()
-                    for col in ["displayname", "firstname", "lastname", "shortname"]:
-                        val = row.get(col)
-                        if val:
-                            names.add(val)
-                    if row.get("firstname") and row.get("lastname"):
-                        names.add(f"{row['firstname']} {row['lastname']}")
-                    matched = False
-                    for name in names:
-                        player_name = name.replace("-", "#").lower().strip()
-                        if team:
-                            key = (player_name, position, team)
-                            if key in self.player_dict:
-                                self.player_dict[key]["ID"] = int(row["draftableid"])
-                                if not self.player_dict[key].get("Matchup"):
-                                    self.player_dict[key]["Matchup"] = row.get("start_date", "")
-                                matched = True
-                                break
-                        else:
-                            for key in list(self.player_dict.keys()):
-                                pname, ppos, pteam = key
-                                if pname == player_name and ppos == position:
-                                    self.player_dict[key]["ID"] = int(row["draftableid"])
-                                    if not self.player_dict[key].get("Matchup"):
-                                        self.player_dict[key]["Matchup"] = row.get("start_date", "")
-                                    matched = True
-                                    break
-                        if matched:
-                            break
-                else:
-                    position = row["position"]
-                    if position == "D":
-                        position = "DST"
-                    team = row["team"]
-                    names = set()
-                    for col in ["nickname", "displayname", "firstname", "lastname", "shortname"]:
-                        val = row.get(col)
-                        if val:
-                            names.add(val)
-                    if row.get("firstname") and row.get("lastname"):
-                        names.add(f"{row['firstname']} {row['lastname']}")
-                    for name in names:
-                        player_name = name.replace("-", "#").lower().strip()
-                        key = (player_name, position, team)
-                        if key in self.player_dict:
-                            matchup = row.get("game", "")
-                            opponent = row.get("opponent", "")
-                            self.player_dict[key]["Opponent"] = opponent
-                            self.player_dict[key]["Matchup"] = matchup
-                            self.player_dict[key]["ID"] = row.get("id", "")
-                            break
+    def load_player_ids(self, path="data/player_ids.csv"):
+        """
+        Load DraftKings player IDs from any of the supported schemas and build maps:
+          - self.player_ids[(name_lower, position)] -> {ID, Position, TeamAbbrev}
+          - self.player_ids_by_id[ID] -> {Name, Position, TeamAbbrev}
+        Normalizes positions (D/DEF->DST). Stores the loaded df for later lookups.
+        """
+        import os
+        import pandas as pd
+        import re
+
+        self.player_ids_path = path
+        if not os.path.exists(path):
+            # Fallback to repo data location if present
+            alt = os.path.join(os.path.dirname(__file__), "..", "data", "player_ids.csv")
+            if os.path.exists(alt):
+                path = alt
+            else:
+                raise FileNotFoundError(f"player_ids file not found at {self.player_ids_path} or {alt}")
+
+        df = load_player_ids_flex(path)
+        self._player_ids_df = df.copy()
+
+        # Canonical maps
+        self.player_ids = {}
+        for _, r in df.iterrows():
+            name = str(r["Name"]).strip()
+            pos = str(r["Position"]).strip().upper()
+            pid = int(r["ID"])
+            team = str(r.get("TeamAbbrev", "") or "").upper()
+            key_name = re.sub(r"\s+", " ", re.sub(r"\.", "", name)).replace("-", "#").lower()
+            self.player_ids[(key_name, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
+
+        self.player_ids_by_id = {
+            int(r["ID"]): {
+                "Name": r["Name"],
+                "Position": r["Position"],
+                "TeamAbbrev": str(r.get("TeamAbbrev", "") or "").upper(),
+            }
+            for _, r in df.iterrows()
+        }
+
+        # Match loaded IDs onto existing player_dict entries
+        for key, rec in self.player_dict.items():
+            pos = str(rec.get("Position", "")).upper()
+            if pos in ("D", "DEF"):
+                pos = "DST"
+                rec["Position"] = "DST"
+            name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", rec.get("Name", "")).strip())
+            name_key = name_key.replace("-", "#").lower()
+            info = self.player_ids.get((name_key, pos))
+            if info:
+                rec["ID"] = info["ID"]
+                if not rec.get("TeamAbbrev"):
+                    rec["TeamAbbrev"] = info.get("TeamAbbrev", "")
+
+        return df
 
     def load_rules(self):
         self.at_most = self.config["at_most"]
