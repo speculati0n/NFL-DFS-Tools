@@ -1,4 +1,5 @@
 import csv
+from player_ids_flex import load_player_ids_flex, dst_id_by_team
 import json
 import math
 import os
@@ -9,6 +10,10 @@ import pulp as plp
 import multiprocessing as mp
 import pandas as pd
 import statistics
+
+def _norm_pos(p):
+    p = str(p or "").upper().strip()
+    return "DST" if p in ("D","DEF","DS","D/ST") else p
 
 # import fuzzywuzzy
 import itertools
@@ -504,70 +509,71 @@ class NFL_GPP_Simulator:
         return None
 
     # Load player IDs for exporting
+    
     def load_player_ids(self, path):
-        with open(path, encoding="utf-8-sig") as file:
-            reader = csv.DictReader(self.lower_first(file))
-            for row in reader:
-                if self.site == "dk":
-                    position = [pos for pos in row["position"].split("/")]
-                    position.sort()
-                    if "QB" not in position and "DST" not in position:
-                        position.append("FLEX")
-                    team = row.get("team") or row.get("teamabbrev")
-                    pos_str = str(position)
-                    names = set()
-                    for col in ["displayname", "firstname", "lastname", "shortname"]:
-                        val = row.get(col)
-                        if val:
-                            names.add(val)
-                    if row.get("firstname") and row.get("lastname"):
-                        names.add(f"{row['firstname']} {row['lastname']}")
-                    matched = False
-                    for name in names:
-                        player_name = name.replace("-", "#").lower().strip()
-                        if team:
-                            key = (player_name, pos_str, team)
-                            if key in self.player_dict:
-                                self.player_dict[key]["ID"] = str(row["draftableid"])
+        """
+        Flexible player ID ingest:
+          - DK weekly salary CSV (ID, Name, Position, TeamAbbrev, ...)
+          - DK bulk IDs CSV (draftableid, displayname, position, ...)
+          - Custom mapping (id/name/position; optional team)
+        Builds:
+          - self.id_name_dict[str(ID)] = Name
+          - self.name_pos_to_id[(name_lower, Position)] = str(ID)
+          - self.id_position_dict[str(ID)] = Position
+          - self.id_teamabbrev_dict[str(ID)] = TeamAbbrev or ""
+          - self._player_ids_df = canonical DataFrame
+        """
+        import os
+        self.player_ids_path = path
+        if not os.path.exists(path):
+            # fall back to repo data path if configured like the optimizer
+            alt = os.path.join(os.path.dirname(__file__), "..", "data", "player_ids.csv")
+            if os.path.exists(alt):
+                path = alt
+            else:
+                raise FileNotFoundError(f"player_ids file not found at {self.player_ids_path} or {alt}")
 
-                                matched = True
-                                break
-                        else:
-                            for key in list(self.player_dict.keys()):
-                                pname, ppos, pteam = key
-                                if pname == player_name and ppos == pos_str:
-                                    self.player_dict[key]["ID"] = str(row["draftableid"])
+        df = load_player_ids_flex(path)
+        self._player_ids_df = df.copy()
 
-                                    matched = True
-                                    break
-                        if matched:
-                            break
-                    self.id_name_dict[str(row["draftableid"])] = row.get("displayname", "")
-                else:
-                    position = [pos for pos in row["position"].split("/")]
-                    position.sort()
-                    if "D" in position:
-                        position = ["DST"]
+        self.id_name_dict = {}
+        self.name_pos_to_id = {}
+        self.id_position_dict = {}
+        self.id_teamabbrev_dict = {}
 
-                    if "QB" not in position and "DST" not in position:
-                        position.append("FLEX")
-                    team = row["team"]
-                    pos_str = str(position)
-                    names = set()
-                    for col in ["nickname", "displayname", "firstname", "lastname", "shortname"]:
-                        val = row.get(col)
-                        if val:
-                            names.add(val)
-                    if row.get("firstname") and row.get("lastname"):
-                        names.add(f"{row['firstname']} {row['lastname']}")
-                    for name in names:
-                        player_name = name.replace("-", "#").lower().strip()
-                        key = (player_name, pos_str, team)
-                        if key in self.player_dict:
-                            self.player_dict[key]["ID"] = str(row.get("id", ""))
+        for _, r in df.iterrows():
+            pid = str(int(r["ID"]))
+            name = str(r["Name"]).strip()
+            pos = _norm_pos(r["Position"])
+            team = str(r.get("TeamAbbrev", "") or "").upper()
 
-                            break
-                    self.id_name_dict[str(row.get("id", ""))] = row.get("nickname") or row.get("displayname", "")
+            self.id_name_dict[pid] = name
+            self.name_pos_to_id[(name.lower(), pos)] = pid
+            self.id_position_dict[pid] = pos
+            self.id_teamabbrev_dict[pid] = team
+
+        # Match IDs onto existing player_dict entries
+        import re
+        for key, rec in list(self.player_dict.items()):
+            name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", rec.get("Name", "")).strip()).replace("-", "#").lower()
+            pos = rec.get("Position")
+            if isinstance(pos, list):
+                pos = pos[0] if pos else ""
+            pos = _norm_pos(pos)
+            pid = self.name_pos_to_id.get((name_key, pos))
+            if pid:
+                rec["ID"] = pid
+                if not rec.get("TeamAbbrev"):
+                    rec["TeamAbbrev"] = self.id_teamabbrev_dict.get(pid, "")
+            elif pos == "DST":
+                team = str(rec.get("TeamAbbrev") or "").upper()
+                if not team and isinstance(key, tuple) and len(key) >= 3:
+                    team = str(key[2]).upper()
+                pid_team = dst_id_by_team(self._player_ids_df, team)
+                if pid_team:
+                    rec["ID"] = str(pid_team)
+
+        return df
 
     def load_contest_data(self, path):
         """Load contest metadata including payout structure.
@@ -1756,6 +1762,52 @@ class NFL_GPP_Simulator:
         return lus
 
     def generate_field_lineups(self):
+
+        # --- Begin: DST ID backfill for sim player pool & guard ---
+        try:
+            # If simulator has a players table, normalize its pos/team columns
+            if hasattr(self, "players_df") and self.players_df is not None:
+                if "pos" in self.players_df.columns:
+                    self.players_df["pos"] = self.players_df["pos"].apply(_norm_pos)
+                if "Position" in self.players_df.columns:
+                    self.players_df["Position"] = self.players_df["Position"].apply(_norm_pos)
+                if "team" in self.players_df.columns:
+                    self.players_df["team"] = (
+                        self.players_df["team"].astype(str).str.upper().str.strip().replace({"LA":"LAR"})
+                    )
+
+            # Backfill: if a DST entry is missing an ID later, we can use team to find one
+            pid_df = getattr(self, "_player_ids_df", None)
+
+            # Define a helper for looking up by team
+            def _dst_id_by_team_lookup(team):
+                team = str(team or "").upper().strip()
+                if not pid_df is None and team:
+                    try:
+                        row = pid_df[
+                            (pid_df["Position"]=="DST") &
+                            (pid_df["TeamAbbrev"].astype(str).str.upper()==team)
+                        ].iloc[0]
+                        return str(int(row["ID"]))
+                    except Exception:
+                        return None
+                return None
+
+            # Guard: ensure we have at least one DST in the IDs universe
+            dst_in_ids = sum(1 for p in self.id_position_dict.values() if p == "DST")
+            if dst_in_ids <= 0:
+                # Build a quick POS count for debugging
+                pos_counts = {}
+                for p in self.id_position_dict.values():
+                    pos_counts[p] = pos_counts.get(p, 0) + 1
+                raise AssertionError(
+                    "Simulator: no DST in IDs after ingest. "
+                    f"ID pos counts: {pos_counts}. "
+                    "Pass a DK file with Position=DST (salary CSV) or ensure bulk/custom mapping contains DST rows."
+                )
+        except Exception:
+            pass
+        # --- End: DST ID backfill & guard ---
         pool_size = (
             max(int(self.field_size * self.pool_factor), self.field_size)
             if self.profile
@@ -2704,14 +2756,14 @@ class NFL_GPP_Simulator:
 
         return lineups_path, exposure_path, stack_path
 
-def _normalize_positions_in_tables(self):
-    def _norm(p):
-        p = str(p or "").upper().strip()
-        return "DST" if p in ("D","DEF") else p
-    try:
-        if hasattr(self, "player_dict"):
-            for _k, _rec in self.player_dict.items():
-                if isinstance(_rec, dict) and "Position" in _rec:
-                    _rec["Position"] = _norm(_rec.get("Position"))
-    except Exception:
-        pass
+    def _normalize_positions_in_tables(self):
+        def _norm(p):
+            p = str(p or "").upper().strip()
+            return "DST" if p in ("D","DEF") else p
+        try:
+            if hasattr(self, "player_dict"):
+                for _k, _rec in self.player_dict.items():
+                    if isinstance(_rec, dict) and "Position" in _rec:
+                        _rec["Position"] = _norm(_rec.get("Position"))
+        except Exception:
+            pass
