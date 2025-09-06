@@ -13,8 +13,7 @@ import statistics
 
 def _norm_pos(p):
     p = str(p or "").upper().strip()
-    p = re.sub(r"[\[\]\"']", "", p)
-    return "DST" if p in ("D","DEF","DS","D/ST","DST") else p
+
 
 # import fuzzywuzzy
 import itertools
@@ -554,14 +553,12 @@ class NFL_GPP_Simulator:
             name = str(r["Name"]).strip()
             pos = _norm_pos(r["Position"])
             team = str(r.get("TeamAbbrev", "") or "").upper()
-            key = re.sub(r"\s+", " ", re.sub(r"\.", "", name)).replace("-", "#").lower()
 
-            self.id_name_dict[pid] = name
-            self.name_pos_to_id[(key, pos)] = pid
             self.id_position_dict[pid] = pos
             self.id_teamabbrev_dict[pid] = team
 
         # Match IDs onto existing player_dict entries
+
         for key, rec in list(self.player_dict.items()):
             name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", rec.get("Name", "")).strip()).replace("-", "#").lower()
             pos = rec.get("Position")
