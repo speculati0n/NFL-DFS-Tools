@@ -3,7 +3,7 @@
 # Robust CSV writer for lineups with enforced DST presence and unique headers.
 from dataclasses import dataclass
 from typing import List, Optional, Callable, Iterable
-import csv, os
+import csv, os, re
 
 @dataclass
 class Player:
@@ -19,7 +19,8 @@ class Player:
 
 def _norm_pos(p: str) -> str:
     p = (p or "").upper().strip()
-    if p in ("D", "DEF"):
+    p = re.sub(r"[\[\]\"']", "", p)
+    if p in ("D", "DEF", "DS", "D/ST", "DST"):
         return "DST"
     return p
 

@@ -20,6 +20,7 @@ CANON_COLS = ["ID", "Name", "Position", "TeamAbbrev"]
 
 def _norm_pos(p: str) -> str:
     p = str(p or "").strip().upper()
+    p = re.sub(r"[\[\]\"']", "", p)
     return "DST" if p in ("D", "DEF", "DS", "D/ST", "DST") else p
 
 def _norm_name(n: str) -> str:
