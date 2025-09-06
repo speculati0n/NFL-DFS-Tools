@@ -463,14 +463,13 @@ class NFL_GPP_Simulator:
         #     print(f"Error while printing variable: {e}")
         # Crunch!
         try:
-            status = problem.solve(plp.PULP_CBC_CMD(msg=0))
+            problem.solve(plp.PULP_CBC_CMD(msg=0))
         except plp.PulpSolverError:
             print(
                 "Infeasibility reached - only generated {} lineups out of {}. Continuing with export.".format(
                     len(self.num_lineups), self.num_lineups
                 )
             )
-            status = problem.status
         except TypeError:
             for p, s in self.player_dict.items():
                 if s["ID"] == 0:
@@ -483,18 +482,12 @@ class NFL_GPP_Simulator:
                     )
                 if s["ID"] is None:
                     print(s["Name"])
-            status = problem.status
         # Directly evaluate the objective using PuLP's value helper instead of
         # constructing a string and using ``eval``.  The previous approach would
         # fail when any variable had a ``None`` value, causing a ``TypeError``
         # during evaluation.  ``plp.value`` safely computes the objective value
         # from the solved problem.
-        objective_value = plp.value(problem.objective)
-        if objective_value is None:
-            raise RuntimeError(
-                f"Failed to compute optimal score; solver status: {plp.LpStatus.get(status, 'Unknown')}"
-            )
-        self.optimal_score = float(objective_value)
+        self.optimal_score = float(plp.value(problem.objective))
 
     @staticmethod
     def extract_matchup_time(game_string):
