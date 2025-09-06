@@ -9,6 +9,21 @@ import pandas as pd
 import pulp as plp
 import copy
 import itertools
+
+def _normalize_pos_key_and_value(rec):
+    # Ensure dict has 'Position' key with normalized value (D/DEF/DS/D/ST->DST).
+    def _norm(p):
+        p = str(p or "").strip().upper()
+        return "DST" if p in ("D","DEF","DS","D/ST") else p
+    # Source may have 'pos' or 'Position'
+    if "Position" in rec:
+        rec["Position"] = _norm(rec.get("Position"))
+    elif "pos" in rec:
+        rec["Position"] = _norm(rec.get("pos"))
+    else:
+        # Nothing present; leave as is
+        pass
+    return rec
 from random import shuffle, choice
 
 from utils import get_data_path, get_config_path
@@ -65,34 +80,89 @@ class NFL_Optimizer:
 
         player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
-        # --- Begin: DST ID backfill by team if name matching failed ---
+        # --- Begin: DST ID backfill & normalization ---
         try:
+            # Normalize all player_dict records to have Position with DST canonicalized
+            for _k, _rec in list(self.player_dict.items()):
+                _normalize_pos_key_and_value(_rec)
+                # copy team if missing into a consistent key
+                if "TeamAbbrev" not in _rec:
+                    team_guess = _rec.get("TeamAbbrev") or _rec.get("Team") or _rec.get("TeamAbbreviation") or ""
+                    _rec["TeamAbbrev"] = str(team_guess or "").upper()
+
+            # Prepare a player-ids dataframe for team-based DST lookup
             pid_df = getattr(self, "_player_ids_df", None)
-            for k, rec in list(self.player_dict.items()):
-                # Normalize Position
-                if str(rec.get("Position", "")).upper() in ("D", "DEF"):
-                    rec["Position"] = "DST"
-                if rec.get("Position") == "DST" and (not rec.get("ID") or int(str(rec.get("ID", 0)).replace(",", "") or 0) == 0):
-                    # get team from record or projections DF
-                    team = str(
-                        rec.get("TeamAbbrev") or
-                        rec.get("Team") or
-                        rec.get("TeamAbbreviation") or
-                        ""
-                    ).upper()
-                    if not team:
-                        try:
-                            nm = str(rec.get("Name", "")).strip().lower()
-                            team = str(self.players_df.loc[self.players_df["name"].str.lower() == nm, "team"].iloc[0]).upper()
-                        except Exception:
-                            team = ""
-                    if pid_df is not None and team:
-                        pid = dst_id_by_team(pid_df, team)
-                        if pid:
-                            rec["ID"] = int(pid)
+            if pid_df is None:
+                try:
+                    from player_ids_flex import load_player_ids_flex
+                    # Try the path recorded during load
+                    pid_path = getattr(self, "player_ids_path", "data/player_ids.csv")
+                    pid_df = load_player_ids_flex(pid_path)
+                    self._player_ids_df = pid_df.copy()
+                except Exception:
+                    pid_df = None
+
+            # Helper: lookup DST ID by team
+            def _dst_id_by_team(team):
+                team = str(team or "").upper().strip()
+                if not pid_df is None:
+                    try:
+                        row = pid_df[
+                            (pid_df["Position"]=="DST") &
+                            (pid_df["TeamAbbrev"].astype(str).str.upper()==team)
+                        ].iloc[0]
+                        return int(row["ID"])
+                    except Exception:
+                        return None
+                return None
+
+            # Backfill IDs for DST when missing
+            for _k, _rec in list(self.player_dict.items()):
+                if _rec.get("Position") == "DST":
+                    # recognize missing/zero IDs
+                    _id_raw = _rec.get("ID")
+                    try:
+                        _id_int = int(str(_id_raw).replace(",",""))
+                    except Exception:
+                        _id_int = 0
+                    if not _id_int:
+                        team = str(_rec.get("TeamAbbrev") or _rec.get("Team") or _rec.get("TeamAbbreviation") or "").upper()
+                        if not team and hasattr(self, "players_df") and "name" in self.players_df.columns and "team" in self.players_df.columns:
+                            try:
+                                nm = str(_rec.get("Name","" )).strip().lower()
+                                team = str(self.players_df.loc[self.players_df["name"].str.lower()==nm, "team"].iloc[0]).upper()
+                            except Exception:
+                                team = ""
+                        if team:
+                            pid = _dst_id_by_team(team)
+                            if pid:
+                                _rec["ID"] = int(pid)
         except Exception:
             pass
-        # --- End: DST ID backfill ---
+        # --- End: DST ID backfill & normalization ---
+        # --- Begin: DST pool guard AFTER normalization/backfill ---
+        try:
+            pos_counts = {}
+            def _getpos(v):
+                if "Position" in v and v["Position"]:
+                    return str(v["Position"]).upper()
+                if "pos" in v and v["pos"]:
+                    return str(v["pos"]).upper()
+                return ""
+            for _v in self.player_dict.values():
+                p = _getpos(_v)
+                pos_counts[p] = pos_counts.get(p, 0) + 1
+            if (pos_counts.get("DST", 0) or 0) <= 0:
+                raise AssertionError(
+                    "No DST candidates after ingest & ID match. "
+                    f"Counts seen: {pos_counts}. "
+                    "Fix: ensure projections have pos='DST' and player_ids file has DST rows with TeamAbbrev; team backfill is applied."
+                )
+        except Exception as _e:
+            raise
+        # --- End: DST pool guard ---
+
+
 
         self.assertPlayerDict()
 
@@ -324,9 +394,6 @@ class NFL_Optimizer:
                 )
 
     def optimize(self, progress_callback=None):
-        # Guard: Ensure DST pool exists before building variables
-        if not any(v.get("Position") == "DST" for v in self.player_dict.values()):
-            raise AssertionError("No DST candidates after ingest & ID match. Check projections pos (D/DEF->DST) and player_ids mapping.")
         # Setup our linear programming equation - https://en.wikipedia.org/wiki/Linear_programming
         # We will use PuLP as our solver - https://coin-or.github.io/pulp/
 
