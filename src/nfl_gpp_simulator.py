@@ -2233,6 +2233,7 @@ class NFL_GPP_Simulator:
         return combined_result_array    
 
     def run_tournament_simulation(self):
+        self._normalize_positions_in_tables()
         print("Running " + str(self.num_iterations) + " simulations")
         for f in self.field_lineups:
             if len(self.field_lineups[f]["Lineup"]) != 9:
@@ -2702,3 +2703,15 @@ class NFL_GPP_Simulator:
             self.stack_exposure_df.to_csv(stack_path, index=False)
 
         return lineups_path, exposure_path, stack_path
+
+def _normalize_positions_in_tables(self):
+    def _norm(p):
+        p = str(p or "").upper().strip()
+        return "DST" if p in ("D","DEF") else p
+    try:
+        if hasattr(self, "player_dict"):
+            for _k, _rec in self.player_dict.items():
+                if isinstance(_rec, dict) and "Position" in _rec:
+                    _rec["Position"] = _norm(_rec.get("Position"))
+    except Exception:
+        pass

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# scripts/fix_lineup_columns.py
 import sys, os, csv
 
 TARGET_HEADER = [
@@ -22,8 +24,8 @@ def fix_file(path):
     header = _normalize_header(rows[0])
     fixed = [header]
     for i, r in enumerate(rows[1:], start=2):
-        # if missing DST (18 cols), insert blank at index 8
-        if len(r) == 18: r = r[:8] + [""] + r[8:]
+        if len(r) == 18:  # assume missing DST at index 8
+            r = r[:8] + [""] + r[8:]
         fixed.append(r)
     out = os.path.splitext(path)[0] + "_fixed.csv"
     with open(out, "w", encoding="utf-8", newline="") as f:

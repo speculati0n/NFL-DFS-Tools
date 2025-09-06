@@ -960,9 +960,10 @@ class NFL_Optimizer:
         print("Lineups done generating. Outputting.")
         # Normalize Position field in player_dict (D/DEF -> DST) before ordering
         for _k, _rec in self.player_dict.items():
-            p = str(_rec.get("Position","" )).upper()
+            p = str(_rec.get("Position","")).upper()
             if p in ("D","DEF"):
                 _rec["Position"] = "DST"
+
 
 
         sorted_lineups = []
@@ -1102,7 +1103,6 @@ class NFL_Optimizer:
 
         final_lineup = [p for p in final_lineup if p is not None]
         return final_lineup
-
     def construct_stack_string(self, lineup):
         metrics = analyze_lineup(lineup, self.player_dict)
         parts = []
