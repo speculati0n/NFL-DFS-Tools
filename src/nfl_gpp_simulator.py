@@ -1,8 +1,48 @@
 import csv
+import ast as _ast
 
-def _norm_pos(p):
-    p = str(p or "").upper().strip()
-    return "DST" if p in ("D","DEF","DS","D/ST") else p
+# --- begin: position canonicalization helpers ---
+_CANON_PRIMARY = ("QB", "RB", "WR", "TE", "DST")
+_SYNONYMS = {"D": "DST", "DEF": "DST", "DS": "DST", "D/ST": "DST", "DST": "DST"}
+_DROP = {"FLEX", "UTIL", "BN", "BENCH", "NA", "IR", "SLOT", "OP"}
+
+def _canon_pos_any(v):
+    """Return canonical position QB/RB/WR/TE/DST from various inputs."""
+    if v is None:
+        return ""
+    # Already a clean string?
+    if isinstance(v, str):
+        s = v.strip()
+        if (s.startswith("[") and s.endswith("]")) or ("," in s) or ("/" in s):
+            try:
+                lv = _ast.literal_eval(s)
+                if not isinstance(lv, (list, tuple)):
+                    raise ValueError
+                toks = [str(x).strip().upper() for x in lv]
+            except Exception:
+                s2 = s.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+                s2 = s2.replace("/", ",")
+                toks = [t.strip().upper() for t in s2.split(",") if t.strip()]
+        else:
+            toks = [s.upper()]
+    else:
+        try:
+            toks = [str(x).strip().upper() for x in v]
+        except Exception:
+            toks = [str(v).strip().upper()]
+
+    norm = []
+    for t in toks:
+        t = _SYNONYMS.get(t, t)
+        if t in _DROP:
+            continue
+        norm.append(t)
+
+    for p in _CANON_PRIMARY:
+        if p in norm:
+            return p
+    return norm[0] if norm else ""
+# --- end: position canonicalization helpers ---
 
 def _sf(x, default=0.0):
     try:
@@ -128,20 +168,23 @@ class NFL_GPP_Simulator:
         self.load_projections(projection_path)
 
 
-        # --- Begin: normalize projections table (pos/team) ---
+        # --- Begin: canonicalize positions in players_df ---
         try:
             if hasattr(self, "players_df") and self.players_df is not None:
-                if "pos" in self.players_df.columns:
-                    self.players_df["pos"] = self.players_df["pos"].apply(_norm_pos)
-                if "Position" in self.players_df.columns:
-                    self.players_df["Position"] = self.players_df["Position"].apply(_norm_pos)
-                if "team" in self.players_df.columns:
-                    self.players_df["team"] = (
-                        self.players_df["team"].astype(str).str.upper().str.strip().replace({"LA":"LAR"})
-                    )
+                for col in ("pos", "Pos", "position", "Position"):
+                    if col in self.players_df.columns:
+                        self.players_df[col] = self.players_df[col].apply(_canon_pos_any)
+                        if col != "Position":
+                            self.players_df["Position"] = self.players_df[col]
+                for tcol in ("team", "Team", "TeamAbbrev", "teamAbbrev"):
+                    if tcol in self.players_df.columns:
+                        self.players_df[tcol] = (
+                            self.players_df[tcol].astype(str).str.upper().str.strip().replace({"LA": "LAR"})
+                        )
+                        self.players_df["TeamAbbrev"] = self.players_df[tcol]
         except Exception:
             pass
-        # --- End: normalize projections table ---
+        # --- End: canonicalize positions in players_df ---
         player_path = get_data_path(site, self.config["player_path"])
         self.load_player_ids(player_path)
 
@@ -244,21 +287,18 @@ class NFL_GPP_Simulator:
     # a person could realistically land on this lineup. Skeleton here is taken from base `mlb_optimizer.py`
     def get_optimal(self):
 
-        # --- Begin: clean numeric fields + DST backfill before building LP ---
+        # --- Begin: canonicalize positions in player_dict & DST backfill ---
         try:
-            # 1) normalize Position/TeamAbbrev keys inside player_dict
+            # 1) Canonicalize Position / TeamAbbrev
             for _k, _rec in list(self.player_dict.items()):
-                # unify Position with DST canonicalization
-                if "Position" in _rec:
-                    _rec["Position"] = _norm_pos(_rec.get("Position"))
-                elif "pos" in _rec:
-                    _rec["Position"] = _norm_pos(_rec.get("pos"))
-                # team to uppercase key TeamAbbrev
-                if "TeamAbbrev" not in _rec:
-                    team_guess = _rec.get("TeamAbbrev") or _rec.get("Team") or _rec.get("TeamAbbreviation") or ""
-                    _rec["TeamAbbrev"] = str(team_guess or "").upper()
+                raw_pos = _rec.get("Position") or _rec.get("pos")
+                _rec["Position"] = _canon_pos_any(raw_pos)
+                if "TeamAbbrev" in _rec:
+                    _rec["TeamAbbrev"] = str(_rec["TeamAbbrev"]).upper().strip()
+                elif "Team" in _rec:
+                    _rec["TeamAbbrev"] = str(_rec["Team"]).upper().strip()
 
-            # 2) backfill DST IDs by team if missing
+            # 2) Backfill DST IDs strictly by canonical 'DST'
             try:
                 from player_ids_flex import load_player_ids_flex
                 pid_path = getattr(self, "player_ids_path", "data/player_ids.csv")
@@ -272,8 +312,8 @@ class NFL_GPP_Simulator:
                     return None
                 try:
                     row = _pid_df[
-                        (_pid_df["Position"]=="DST") &
-                        (_pid_df["TeamAbbrev"].astype(str).str.upper()==team)
+                        (_pid_df["Position"] == "DST")
+                        & (_pid_df["TeamAbbrev"].astype(str).str.upper() == team)
                     ].iloc[0]
                     return int(row["ID"])
                 except Exception:
@@ -281,92 +321,104 @@ class NFL_GPP_Simulator:
 
             for _k, _rec in list(self.player_dict.items()):
                 if _rec.get("Position") == "DST":
-                    _id_raw = _rec.get("ID")
+                    _id_raw = _rec.get("ID", 0)
                     try:
-                        _id_ok = int(str(_id_raw).replace(",",""))
+                        _id_ok = int(str(_id_raw).replace(",", ""))
                     except Exception:
                         _id_ok = 0
                     if not _id_ok:
-                        t = _rec.get("TeamAbbrev")
-                        if not t and hasattr(self, "players_df") and {"name","team"}.issubset(set(self.players_df.columns)):
-                            try:
-                                nm = str(_rec.get("Name","")).strip().lower()
-                                t = str(self.players_df.loc[self.players_df["name"].str.lower()==nm, "team"].iloc[0]).upper()
-                            except Exception:
-                                t = ""
-                        pid = _dst_id_by_team_lookup(t)
+                        pid = _dst_id_by_team_lookup(_rec.get("TeamAbbrev"))
                         if pid:
                             _rec["ID"] = pid
 
-            # 3) coerce numerics used by the LP
-            # Try to pick projection from common keys, default 0.0
-            PROJ_KEYS = ("Projection","projections_proj","proj","fpts_proj","projected_points","fpts","points")
-            SAL_KEYS  = ("Salary","salary","sal","cost","dk_salary")
-            OWN_KEYS  = ("own","ownership","proj_own","ownership_proj")
-            CEIL_KEYS = ("ceil","ceiling","fpts_ceil","projection_ceil")
-            STD_KEYS  = ("stddev","stdev","sd","projection_std","fpts_std")
+            # 3) Post-normalization position counts for diagnostics
+            pos_counts = {}
+            for _rec in self.player_dict.values():
+                p = str(_rec.get("Position", "")).upper()
+                pos_counts[p] = pos_counts.get(p, 0) + 1
+            if pos_counts.get("DST", 0) <= 0:
+                raise AssertionError(
+                    f"Simulator: no DST players after position canonicalization. POS counts={pos_counts}"
+                )
+        except Exception:
+            raise
+        # --- End: canonicalize positions in player_dict & DST backfill ---
+
+        # --- Begin: clean numeric fields before building LP ---
+        try:
+            PROJ_KEYS = (
+                "Projection",
+                "projections_proj",
+                "proj",
+                "fpts_proj",
+                "projected_points",
+                "fpts",
+                "points",
+            )
+            SAL_KEYS = ("Salary", "salary", "sal", "cost", "dk_salary")
+            OWN_KEYS = ("own", "ownership", "proj_own", "ownership_proj")
+            CEIL_KEYS = ("ceil", "ceiling", "fpts_ceil", "projection_ceil")
+            STD_KEYS = ("stddev", "stdev", "sd", "projection_std", "fpts_std")
 
             for _k, _rec in list(self.player_dict.items()):
-                # projection
                 _p = None
                 for kk in PROJ_KEYS:
                     if kk in _rec and _rec[kk] not in (None, ""):
-                        _p = _rec[kk]; break
+                        _p = _rec[kk]
+                        break
                 if _p is None and hasattr(self, "players_df") and "name" in self.players_df.columns:
                     try:
-                        nm = str(_rec.get("Name","")).strip().lower()
-                        _row = self.players_df.loc[self.players_df["name"].str.lower()==nm]
+                        nm = str(_rec.get("Name", "")).strip().lower()
+                        _row = self.players_df.loc[self.players_df["name"].str.lower() == nm]
                         if not _row.empty:
                             for alt in PROJ_KEYS:
                                 if alt in _row.columns:
-                                    _p = _row[alt].iloc[0]; break
+                                    _p = _row[alt].iloc[0]
+                                    break
                     except Exception:
                         pass
                 _rec["Projection"] = _sf(_p, 0.0)
 
-                # salary
                 _s = None
                 for kk in SAL_KEYS:
                     if kk in _rec and _rec[kk] not in (None, ""):
-                        _s = _rec[kk]; break
+                        _s = _rec[kk]
+                        break
                 _rec["Salary"] = _sf(_s, 0.0)
 
-                # ownership (optional)
                 _o = None
                 for kk in OWN_KEYS:
                     if kk in _rec and _rec[kk] not in (None, ""):
-                        _o = _rec[kk]; break
+                        _o = _rec[kk]
+                        break
                 _rec["Own"] = _sf(_o, 0.0)
 
-                # ceiling/stddev (optional)
                 _c = None
                 for kk in CEIL_KEYS:
                     if kk in _rec and _rec[kk] not in (None, ""):
-                        _c = _rec[kk]; break
+                        _c = _rec[kk]
+                        break
                 _rec["Ceil"] = _sf(_c, 0.0)
 
                 _sd = None
                 for kk in STD_KEYS:
                     if kk in _rec and _rec[kk] not in (None, ""):
-                        _sd = _rec[kk]; break
+                        _sd = _rec[kk]
+                        break
                 _rec["STDDEV"] = _sf(_sd, 0.0)
 
-            # 4) diagnostics + guard: ensure no None leaked into Projection
-            bad = [(_k, _rec.get("Name",""), _rec.get("Position","")) for _k,_rec in self.player_dict.items()
-                   if not isinstance(_rec.get("Projection"), (int,float))]
+            bad = [
+                (_k, _rec.get("Name", ""), _rec.get("Position", ""))
+                for _k, _rec in self.player_dict.items()
+                if not isinstance(_rec.get("Projection"), (int, float))
+            ]
             if bad:
-                raise AssertionError(f"Simulator: non-numeric Projection for {len(bad)} players (e.g., {bad[:3]}).")
-            # ensure we actually have at least one DST in the pool
-            pos_counts = {}
-            for _rec in self.player_dict.values():
-                p = str(_rec.get("Position","")).upper()
-                pos_counts[p] = pos_counts.get(p, 0) + 1
-            if pos_counts.get("DST",0) <= 0:
-                raise AssertionError(f"Simulator: no DST players after normalization/backfill. POS counts: {pos_counts}")
+                raise AssertionError(
+                    f"Simulator: non-numeric Projection for {len(bad)} players (e.g., {bad[:3]})."
+                )
         except Exception as _e:
-            # Surface rich context to Streamlit; the main try will bubble this up
             raise
-        # --- End: clean numeric fields + DST backfill ---
+        # --- End: clean numeric fields before building LP ---
         # print(s['Name'],s['ID'])
         # print(self.player_dict)
         problem = plp.LpProblem("NFL", plp.LpMaximize)
@@ -693,7 +745,7 @@ class NFL_GPP_Simulator:
         for _, r in df.iterrows():
             pid = str(int(r["ID"]))
             name = str(r["Name"]).strip()
-            pos = _norm_pos(r["Position"])
+            pos = _canon_pos_any(r["Position"])
             team = str(r.get("TeamAbbrev", "") or "").upper()
 
             self.id_position_dict[pid] = pos
@@ -709,7 +761,7 @@ class NFL_GPP_Simulator:
             pos = rec.get("Position")
             if isinstance(pos, list):
                 pos = pos[0] if pos else ""
-            pos = _norm_pos(pos)
+            pos = _canon_pos_any(pos)
             pid = self.name_pos_to_id.get((name_key, pos))
             if pid:
                 rec["ID"] = pid
@@ -1917,15 +1969,17 @@ class NFL_GPP_Simulator:
         try:
             # If simulator has a players table, normalize its pos/team columns
             if hasattr(self, "players_df") and self.players_df is not None:
-                if "pos" in self.players_df.columns:
-                    self.players_df["pos"] = self.players_df["pos"].apply(_norm_pos)
-                if "Position" in self.players_df.columns:
-                    self.players_df["Position"] = self.players_df["Position"].apply(_norm_pos)
+                for col in ("pos", "Pos", "position", "Position"):
+                    if col in self.players_df.columns:
+                        self.players_df[col] = self.players_df[col].apply(_canon_pos_any)
+                        if col != "Position":
+                            self.players_df["Position"] = self.players_df[col]
                 if "team" in self.players_df.columns:
                     self.players_df["team"] = (
-                        self.players_df["team"].astype(str).str.upper().str.strip().replace({"LA":"LAR"})
+                        self.players_df["team"].astype(str).str.upper().str.strip().replace({"LA": "LAR"})
                     )
-
+                    self.players_df["TeamAbbrev"] = self.players_df["team"]
+        
             # Backfill: if a DST entry is missing an ID later, we can use team to find one
             pid_df = getattr(self, "_player_ids_df", None)
 
