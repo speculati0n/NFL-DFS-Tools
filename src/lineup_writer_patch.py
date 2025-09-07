@@ -110,8 +110,15 @@ def write_lineup_csv(
                 _slot_str(slots["QB"]), _slot_str(slots["RB1"]), _slot_str(slots["RB2"]),
                 _slot_str(slots["WR1"]), _slot_str(slots["WR2"]), _slot_str(slots["WR3"]),
                 _slot_str(slots["TE"]), _slot_str(slots["FLEX"]), _slot_str(slots["DST"]),
-                round(total_salary,2), round(total_proj,2), 0.0, round(total_act,2), round(total_ceil,2),
+                round(total_salary,2), round(total_proj,2), round(total_proj,2), round(total_act,2), round(total_ceil,2),
                 round(own_sum,6), own_prod, round(stddev,6), p_vs_dst, stack_str
             ]
             assert len(row) == len(HEADER), f"[lineup {i}] Row has {len(row)} fields; expected {len(HEADER)}"
             w.writerow(row)
+
+        # Optional: add a simple footer with optimal and floor if provided via environment
+        opt = os.environ.get("OPTIMAL_FPTS")
+        floor = os.environ.get("MIN_FPTS_FLOOR")
+        if opt or floor:
+            w.writerow([])
+            w.writerow(["# Optimal FPTS", opt or "", "# Min FPTS Floor", floor or ""])
