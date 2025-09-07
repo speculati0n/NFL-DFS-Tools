@@ -73,6 +73,10 @@ class NFL_Optimizer:
         self.stack_exposure_df = None
 
         self.load_config()
+        # Honor off-optimal floor from config (0..1). 0 disables.
+        self.max_pct_off_optimal = float(self.config.get("max_pct_off_optimal", 0.0))
+        if not (0.0 <= self.max_pct_off_optimal <= 1.0):
+            self.max_pct_off_optimal = 0.0
         self.load_rules()
 
         self.problem = plp.LpProblem("NFL", plp.LpMaximize)
@@ -971,7 +975,35 @@ class NFL_Optimizer:
             == 9,
             f"Total Players == 9",
         )
+        # --- Begin: enforce off-optimal floor from config ---
+        try:
+            _pct = float(getattr(self, "max_pct_off_optimal", 0.0))
+        except Exception:
+            _pct = 0.0
 
+        if _pct and 0.0 < _pct < 1.0:
+            # Deterministic FPTS sum (no randomness) to measure "optimal"
+            _det_fpts_sum = plp.lpSum(
+                self.player_dict[(player, pos_str, team)]["Fpts"]
+                * lp_variables[self.player_dict[(player, pos_str, team)]["ID"]]
+                for (player, pos_str, team) in self.player_dict
+            )
+            # Solve once deterministically to find the true optimal score
+            self.problem += _det_fpts_sum, "Objective"
+            try:
+                self.problem.solve(plp.PULP_CBC_CMD(msg=0))
+                _opt = float(self.problem.objective.value())
+            except Exception:
+                _opt = None
+
+            # Only enforce the floor if we successfully computed an optimal score
+            if _opt is not None and _opt > 0:
+                _min_fpts = (1.0 - _pct) * _opt
+                # Add a hard floor constraint based on *deterministic* projections,
+                # so it remains valid even when we randomize the objective later.
+                self.problem += (_det_fpts_sum >= _min_fpts), "MinFptsOffOptimal"
+        # --- End: enforce off-optimal floor ---
+    
         # Crunch!
         num_pool = max(int(self.num_lineups * self.pool_factor), self.num_lineups)
         for i in range(num_pool):
