@@ -1209,6 +1209,15 @@ class NFL_Optimizer:
         if hasattr(self, "min_fpts_floor"):
             os.environ["MIN_FPTS_FLOOR"] = f"{self.min_fpts_floor:.4f}"
 
+        # BEGIN: pass site/cap/floor to writer for independent verification
+        import os as _os
+        _cap  = 50000 if self.site == "dk" else 60000
+        _floor = self.min_lineup_salary if self.min_lineup_salary else (45000 if self.site == "dk" else 55000)
+        _os.environ["OPT_SITE"] = str(self.site)
+        _os.environ["OPT_CAP"] = str(int(_cap))
+        _os.environ["OPT_FLOOR"] = str(int(_floor))
+        # END: pass site/cap/floor to writer
+
         write_lineup_csv(
             all_lineups_as_players,
             out_path=out_path,
