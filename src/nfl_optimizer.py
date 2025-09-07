@@ -999,6 +999,9 @@ class NFL_Optimizer:
             # Only enforce the floor if we successfully computed an optimal score
             if _opt is not None and _opt > 0:
                 _min_fpts = (1.0 - _pct) * _opt
+                # Persist for visibility/debug
+                self.optimal_fpts = _opt
+                self.min_fpts_floor = _min_fpts
                 # Add a hard floor constraint based on *deterministic* projections,
                 # so it remains valid even when we randomize the objective later.
                 self.problem += (_det_fpts_sum >= _min_fpts), "MinFptsOffOptimal"
@@ -1025,8 +1028,9 @@ class NFL_Optimizer:
                 if value["ID"] in player_ids:
                     players.append(key)
 
-            fpts_used = self.problem.objective.value()
-            self.lineups.append((players, fpts_used))
+            # Report deterministic projection (the metric the floor enforces)
+            det_proj = sum(self.player_dict[key]["Fpts"] for key in players)
+            self.lineups.append((players, det_proj))
 
             progress = i + 1
             percent = (progress / num_pool) * 100
@@ -1174,6 +1178,11 @@ class NFL_Optimizer:
 
         def _stack_str_fn(L):
             return self.construct_stack_string([getattr(p, "key") for p in L])
+        # Surface optimal and floor for downstream reporting
+        if hasattr(self, "optimal_fpts"):
+            os.environ["OPTIMAL_FPTS"] = f"{self.optimal_fpts:.4f}"
+        if hasattr(self, "min_fpts_floor"):
+            os.environ["MIN_FPTS_FLOOR"] = f"{self.min_fpts_floor:.4f}"
 
         write_lineup_csv(
             all_lineups_as_players,
