@@ -3,7 +3,7 @@ import ast as _ast
 
 # --- begin: position canonicalization helpers ---
 _CANON_PRIMARY = ("QB", "RB", "WR", "TE", "DST")
-_SYNONYMS = {"D": "DST", "DEF": "DST", "DS": "DST", "D/ST": "DST", "DST": "DST"}
+_SYNONYMS = {"D": "DST", "DEF": "DST", "DS": "DST", "D/ST": "DST", "DST": "DST", "W": "WR", "R": "RB", "Q": "QB", "T": "TE"}
 _DROP = {"FLEX", "UTIL", "BN", "BENCH", "NA", "IR", "SLOT", "OP"}
 
 def _canon_pos_any(v):
@@ -105,6 +105,42 @@ class NFL_GPP_Simulator:
         7: ["TE"],
         8: ["RB", "WR", "TE"],
     }
+
+    # --- begin: robust correlation getter ---
+    def get_corr_value(self, p_i, p_j, position_correlations=None):
+        """
+        Return correlation between two players based on their primary positions.
+        Works with either a flat dict (pos->val) or nested dict (pos->pos->val).
+        Defaults to 0.0 if missing.
+        """
+        try:
+            pos_i = getattr(p_i, "pos", None) or getattr(p_i, "Position", None) or (p_i.get("Position") if isinstance(p_i, dict) else None)
+            pos_j = getattr(p_j, "pos", None) or getattr(p_j, "Position", None) or (p_j.get("Position") if isinstance(p_j, dict) else None)
+        except Exception:
+            pos_i = pos_j = None
+        pi = _canon_pos_primary(pos_i)
+        pj = _canon_pos_primary(pos_j)
+        if not pi or not pj:
+            return 0.0
+
+        if position_correlations is None:
+            try:
+                position_correlations = self.position_correlations
+            except Exception:
+                position_correlations = {}
+
+        try:
+            val = position_correlations[pi][pj]
+        except Exception:
+            try:
+                val = position_correlations[pi]
+            except Exception:
+                val = 0.0
+        try:
+            return float(val)
+        except Exception:
+            return 0.0
+    # --- end: robust correlation getter ---
 
     def __init__(
         self,
@@ -1278,6 +1314,25 @@ class NFL_GPP_Simulator:
                         except:
                             print(plyr_list, prob_list)
                             print("find failed on nonstack and first player selection")
+                        # --- begin: lineup generation fallback tuning ---
+                        # If we repeatedly fail to select the first/non-stack player, relax the strictness a bit.
+                        # This prevents 5000-iteration timeouts on small or multi-eligible pools.
+                        if "fail_counter" not in locals():
+                            fail_counter = 0
+                        fail_counter += 1
+                        if fail_counter in (500, 1000, 2000, 3000, 4000):
+                            try:
+                                # widen pool: allow any skill position as seed (WR/RB/TE), keep QB/DST out
+                                widened = [p for p in players if _canon_pos_primary(getattr(p, "pos", None) or getattr(p, "Position", None)) in ("WR","RB","TE")]
+                                if widened:
+                                    first_player_pool = widened
+                                # as a last resort after 3000 attempts, allow stack leniency by one
+                                if fail_counter >= 3000 and hasattr(self, "stack_rules"):
+                                    self.stack_rules = max(0, int(self.stack_rules) - 1)
+                            except Exception:
+                                pass
+                        # --- end: lineup generation fallback tuning ---
+
                         choice_idx = np.nonzero(ids == choice)[0]
                         lineup.append(str(choice))
                         in_lineup[choice_idx] = 1
