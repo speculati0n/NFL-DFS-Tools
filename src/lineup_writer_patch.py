@@ -99,6 +99,26 @@ def write_lineup_csv(
 
             total_salary = _sum(nine, "salary")
             total_proj   = _sum(nine, "proj")
+
+            # --- Begin: hard guard on salary bounds (independent of optimizer) ---
+            cap_env   = os.environ.get("OPT_CAP")
+            floor_env = os.environ.get("OPT_FLOOR")
+            try:
+                cap   = int(cap_env)   if cap_env   is not None else 50000
+                floor = int(floor_env) if floor_env is not None else 45000
+            except Exception:
+                cap, floor = 50000, 45000  # DK defaults if env missing
+
+            if not (floor - 1e-6 <= total_salary <= cap + 1e-6):
+                raise AssertionError(
+                    f"[lineup {i}] Salary {total_salary} out of bounds "
+                    f"(cap={cap}, floor={floor}). "
+                    f"QB={_slot_str(slots['QB'])}, RB1={_slot_str(slots['RB1'])}, RB2={_slot_str(slots['RB2'])}, "
+                    f"WR1={_slot_str(slots['WR1'])}, WR2={_slot_str(slots['WR2'])}, WR3={_slot_str(slots['WR3'])}, "
+                    f"TE={_slot_str(slots['TE'])}, FLEX={_slot_str(slots['FLEX'])}, DST={_slot_str(slots['DST'])}"
+                )
+            # --- End: hard guard on salary bounds ---
+
             total_act    = _sum(nine, "act")
             total_ceil   = _sum(nine, "ceil")
             own_sum      = _own_sum(nine)
