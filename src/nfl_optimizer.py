@@ -34,6 +34,28 @@ from stack_metrics import analyze_lineup
 from player_ids_flex import load_player_ids_flex, dst_id_by_team
 
 
+# --- begin Player dataclass (optimizer) ---
+try:
+    from dataclasses import dataclass
+except Exception:
+    dataclass = None
+
+if dataclass is not None and "class Player(" not in globals():
+    @dataclass
+    class Player:
+        name: str
+        pos: str
+        team: str
+        salary: float
+        proj: float
+        ceil: float = 0.0
+        stddev: float = 0.0
+        own: float = 0.0
+        id: int = 0
+        key: str = ""
+# --- end Player dataclass (optimizer) ---
+
+
 class NFL_Optimizer:
     team_rename_dict = {"LA": "LAR"}
 
@@ -171,6 +193,112 @@ class NFL_Optimizer:
 
 
         self.assertPlayerDict()
+        # Fast lookup: var ID -> (name, pos, team)
+        self.id_to_key = {rec["ID"]: key for key, rec in self.player_dict.items()}
+
+    # === begin get_players helper ===
+    def get_players(self, ids):
+        """
+        Map LP variable IDs -> Player objects using player_dict + id_to_key.
+        """
+        out = []
+        # Build index lazily if needed
+        if not hasattr(self, "id_to_key") or not self.id_to_key:
+            try:
+                self.id_to_key = {rec["ID"]: key for key, rec in self.player_dict.items()}
+            except Exception:
+                self.id_to_key = {}
+        for _pid in ids:
+            try:
+                pid = int(str(_pid).strip())
+            except Exception:
+                continue
+            key = self.id_to_key.get(pid)
+            if key is None:
+                # fallback: scan (slower, but safe)
+                for k, rec in self.player_dict.items():
+                    try:
+                        if int(rec.get("ID", -1)) == pid:
+                            key = k
+                            break
+                    except Exception:
+                        pass
+            if key is None:
+                continue
+            (name, pos_str, team) = key
+            rec = self.player_dict.get(key, {})
+            # safe fetches
+            def _sf(x, d=0.0):
+                try:
+                    if x is None:
+                        return float(d)
+                    return float(x)
+                except Exception:
+                    return float(d)
+            def _si(x, d=0):
+                try:
+                    return int(float(x))
+                except Exception:
+                    return int(d)
+
+            pos = str(rec.get("Position", pos_str)).upper()
+            team_abbrev = str(rec.get("TeamAbbrev", team)).upper()
+            p = Player(
+                name=str(name),
+                pos=pos,
+                team=team_abbrev,
+                salary=_sf(rec.get("Salary", 0.0), 0.0),
+                proj=_sf(rec.get("Fpts", 0.0), 0.0),
+                ceil=_sf(rec.get("Ceil", rec.get("CEIL", 0.0)), 0.0),
+                stddev=_sf(rec.get("StdDev", rec.get("STDDEV", 0.0)), 0.0),
+                own=_sf(rec.get("Own", rec.get("OWN", 0.0)), 0.0),
+                id=_si(rec.get("ID", pid), pid),
+                key=str(rec.get("ID", pid)),
+            )
+            out.append(p)
+        return out
+    # === end get_players helper ===
+
+    def select_slot_players(self, players):
+        """Slot players into QB/RB/WR/TE/FLEX/DST based on position and salary."""
+        normed = []
+        for p in players:
+            pos = str(getattr(p, "pos", "")).upper().strip()
+            if pos in ("D", "DEF", "DS", "D/ST", "DST"):
+                pos = "DST"
+            p.pos = pos
+            normed.append(p)
+
+        by_pos = {"QB": [], "RB": [], "WR": [], "TE": [], "DST": []}
+        for p in normed:
+            if p.pos in by_pos:
+                by_pos[p.pos].append(p)
+
+        qb = by_pos["QB"][0] if by_pos["QB"] else None
+        dst = by_pos["DST"][0] if by_pos["DST"] else None
+
+        prio = {"QB": 0, "RB": 1, "WR": 2, "TE": 3}
+        skill = [p for p in normed if p.pos != "DST"]
+        skill.sort(key=lambda x: (prio.get(x.pos, 9), -float(getattr(x, "salary", 0.0) or 0.0), getattr(x, "name", "")))
+
+        rb = [p for p in skill if p.pos == "RB"][:2]
+        wr = [p for p in skill if p.pos == "WR"][:3]
+        te = [p for p in skill if p.pos == "TE"][:1]
+
+        used_ids = {id(x) for x in ([qb, dst] + rb + wr + te) if x is not None}
+        flex = next((p for p in skill if id(p) not in used_ids), None)
+
+        return {
+            "QB": qb,
+            "RB1": rb[0] if len(rb) > 0 else None,
+            "RB2": rb[1] if len(rb) > 1 else None,
+            "WR1": wr[0] if len(wr) > 0 else None,
+            "WR2": wr[1] if len(wr) > 1 else None,
+            "WR3": wr[2] if len(wr) > 2 else None,
+            "TE": te[0] if len(te) > 0 else None,
+            "FLEX": flex,
+            "DST": dst,
+        }
 
     def flatten(self, list):
         return [item for sublist in list for item in sublist]
@@ -1040,7 +1168,7 @@ class NFL_Optimizer:
 
             # --- Salary bounds guard ---
             # Convert chosen variable IDs -> Player objects, then slot to nine
-            players_ids = players
+            players_ids = player_ids
             players_objs = self.get_players(players_ids)
             slots = self.select_slot_players(players_objs)
             nine = [slots["QB"], slots["RB1"], slots["RB2"], slots["WR1"], slots["WR2"], slots["WR3"], slots["TE"], slots["FLEX"], slots["DST"]]

@@ -698,6 +698,9 @@ class NFL_GPP_Simulator:
 
             self.id_position_dict[pid] = pos
             self.id_teamabbrev_dict[pid] = team
+            self.id_name_dict[pid] = name
+            name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", name).strip()).replace("-", "#").lower()
+            self.name_pos_to_id[(name_key, pos)] = pid
 
         # Match IDs onto existing player_dict entries
 
