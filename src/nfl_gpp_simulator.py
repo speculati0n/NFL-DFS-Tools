@@ -2369,11 +2369,28 @@ class NFL_GPP_Simulator:
         # Define correlations between positions
 
         def get_corr_value(player1, player2):
-            # First, check for specific player-to-player correlations
-            if player2["Name"] in player1.get("Player Correlations", {}):
-                return player1["Player Correlations"][player2["Name"]]
+            """Robust correlation: canonical positions + safe defaults."""
+            # Player-specific override first
+            try:
+                pc = player1.get("Player Correlations", {})
+                if player2.get("Name") in pc:
+                    return float(pc[player2["Name"]])
+            except Exception:
+                pass
 
-            # If no specific correlation is found, proceed with the general logic
+            # Canonicalize primary positions
+            try:
+                pos1 = _canon_pos_primary(player1.get("Position"))
+            except Exception:
+                pos1 = ""
+            try:
+                pos2 = _canon_pos_primary(player2.get("Position"))
+            except Exception:
+                pos2 = ""
+            if not pos1 or not pos2:
+                return 0.0
+
+            # Base correlations by position (fallback)
             position_correlations = {
                 "QB": -0.5,
                 "RB": -0.2,
@@ -2383,18 +2400,22 @@ class NFL_GPP_Simulator:
                 "DST": -0.5,
             }
 
-            if player1["Team"] == player2["Team"] and player1["Position"][0] == player2["Position"][0]:
-                primary_position = player1["Position"][0]
-                return position_correlations[primary_position]
+            # Same team & same canonical pos -> base table
+            try:
+                same_team = player1.get("Team") == player2.get("Team")
+            except Exception:
+                same_team = False
 
-            if player1["Team"] != player2["Team"]:
-                player_2_pos = "Opp " + str(player2["Position"][0])
-            else:
-                player_2_pos = player2["Position"][0]
+            if same_team and pos1 == pos2:
+                return float(position_correlations.get(pos1, 0.0))
 
-            return player1["Correlations"].get(
-                player_2_pos, 0
-            )  # Default to 0 if no correlation is found
+            # Else use player1["Correlations"] with canonical keys
+            try:
+                corr = player1.get("Correlations", {})
+                key = (f"Opp {pos2}") if not same_team else pos2
+                return float(corr.get(key, 0.0))
+            except Exception:
+                return 0.0
 
         def build_covariance_matrix(players):
             N = len(players)
