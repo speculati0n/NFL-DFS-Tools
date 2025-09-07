@@ -1039,9 +1039,15 @@ class NFL_Optimizer:
                     players.append(key)
 
             # --- Salary bounds guard ---
-            # Deterministic projection & salary for the chosen players
-            det_proj   = sum(self.player_dict[key]["Fpts"]   for key in players)
-            det_salary = sum(self.player_dict[key]["Salary"] for key in players)
+            # Convert chosen variable IDs -> Player objects, then slot to nine
+            players_ids = players
+            players_objs = self.get_players(players_ids)
+            slots = self.select_slot_players(players_objs)
+            nine = [slots["QB"], slots["RB1"], slots["RB2"], slots["WR1"], slots["WR2"], slots["WR3"], slots["TE"], slots["FLEX"], slots["DST"]]
+
+            # Deterministic totals based on the *nine* that will be exported
+            det_proj   = sum(p.proj   for p in nine)
+            det_salary = sum(p.salary for p in nine)
 
             # Active cap/floor (match LP constraints)
             max_salary = 50000 if self.site == "dk" else 60000
@@ -1051,10 +1057,13 @@ class NFL_Optimizer:
             if det_salary > max_salary + 1e-6 or det_salary < min_salary - 1e-6:
                 raise AssertionError(
                     f"Lineup salary {det_salary} out of bounds "
-                    f"(site={self.site}, cap={max_salary}, floor={min_salary})."
+                    f"(site={self.site}, cap={max_salary}, floor={min_salary}). "
+                    f"QB={nine[0].name}, RB1={nine[1].name}, RB2={nine[2].name}, "
+                    f"WR1={nine[3].name}, WR2={nine[4].name}, WR3={nine[5].name}, "
+                    f"TE={nine[6].name}, FLEX={nine[7].name}, DST={nine[8].name}"
                 )
 
-            # Report deterministic projection (the metric the floor enforces)
+            # Store lineup with deterministic projection (same metric as constraints)
             self.lineups.append((players, det_proj))
 
             progress = i + 1
