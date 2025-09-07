@@ -1008,6 +1008,16 @@ class NFL_Optimizer:
         # --- End: enforce off-optimal floor ---
     
         # Crunch!
+
+        # --- Optimizer cap/floor info ---
+        try:
+            import streamlit as st
+            st.info(
+                f"Optimizer: site={self.site}, cap={50000 if self.site=='dk' else 60000}, "
+                f"min_floor={self.min_lineup_salary or (45000 if self.site=='dk' else 55000)}"
+            )
+        except Exception:
+            pass
         num_pool = max(int(self.num_lineups * self.pool_factor), self.num_lineups)
         for i in range(num_pool):
             try:
@@ -1028,8 +1038,23 @@ class NFL_Optimizer:
                 if value["ID"] in player_ids:
                     players.append(key)
 
+            # --- Salary bounds guard ---
+            # Deterministic projection & salary for the chosen players
+            det_proj   = sum(self.player_dict[key]["Fpts"]   for key in players)
+            det_salary = sum(self.player_dict[key]["Salary"] for key in players)
+
+            # Active cap/floor (match LP constraints)
+            max_salary = 50000 if self.site == "dk" else 60000
+            min_salary = self.min_lineup_salary if self.min_lineup_salary else (45000 if self.site == "dk" else 55000)
+
+            # Enforce at runtime (tiny epsilon for float safety)
+            if det_salary > max_salary + 1e-6 or det_salary < min_salary - 1e-6:
+                raise AssertionError(
+                    f"Lineup salary {det_salary} out of bounds "
+                    f"(site={self.site}, cap={max_salary}, floor={min_salary})."
+                )
+
             # Report deterministic projection (the metric the floor enforces)
-            det_proj = sum(self.player_dict[key]["Fpts"] for key in players)
             self.lineups.append((players, det_proj))
 
             progress = i + 1
