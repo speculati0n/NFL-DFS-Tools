@@ -42,7 +42,23 @@ def _canon_pos_any(v):
         if p in norm:
             return p
     return norm[0] if norm else ""
+
+
+def _canon_pos_primary(v):
+    s = _canon_pos_any(v)
+    if s in _CANON_PRIMARY:
+        return s
+    return _SYNONYMS.get(s, '') if s else ''
 # --- end: position canonicalization helpers ---
+
+def _scalar(x):
+    try:
+        return float(x.item())
+    except Exception:
+        try:
+            return float(x[0])
+        except Exception:
+            return float(x)
 
 def _sf(x, default=0.0):
     try:
@@ -1336,8 +1352,8 @@ class NFL_GPP_Simulator:
                         choice_idx = np.nonzero(ids == choice)[0]
                         lineup.append(str(choice))
                         in_lineup[choice_idx] = 1
-                        salary += salaries[choice_idx]
-                        proj += projections[choice_idx]
+                        salary += _scalar(salaries[choice_idx])
+                        proj += _scalar(projections[choice_idx])
                         def_opp = opponents[choice_idx][0]
                         lineup_matchups.append(matchups[choice_idx[0]])
                         player_teams.append(teams[choice_idx][0])
@@ -1403,8 +1419,8 @@ class NFL_GPP_Simulator:
                             choice_idx = np.nonzero(ids == choice)[0]
                             lineup.append(str(choice))
                             in_lineup[choice_idx] = 1
-                            salary += salaries[choice_idx]
-                            proj += projections[choice_idx]
+                            salary += _scalar(salaries[choice_idx])
+                            proj += _scalar(projections[choice_idx])
                             player_teams.append(teams[choice_idx][0])
                             lineup_matchups.append(matchups[choice_idx[0]])
                             if teams[choice_idx][0] == def_opp:
@@ -1486,8 +1502,8 @@ class NFL_GPP_Simulator:
                             choice_idx = np.nonzero(ids == choice)[0]
                             lineup.append(str(choice))
                             in_lineup[choice_idx] = 1
-                            salary += salaries[choice_idx]
-                            proj += projections[choice_idx]
+                            salary += _scalar(salaries[choice_idx])
+                            proj += _scalar(projections[choice_idx])
                             player_teams.append(teams[choice_idx][0])
                             lineup_matchups.append(matchups[choice_idx[0]])
                             if teams[choice_idx][0] == def_opp:
@@ -1699,8 +1715,8 @@ class NFL_GPP_Simulator:
                                 lineup[ix] = str(choice)
                             except IndexError:
                                 print(lineup, choice, ix)
-                            salary += salaries[choice_idx]
-                            proj += projections[choice_idx]
+                            salary += _scalar(salaries[choice_idx])
+                            proj += _scalar(projections[choice_idx])
                             def_opp = opponents[choice_idx][0]
                             lineup_matchups.append(matchups[choice_idx[0]])
                             player_teams.append(teams[choice_idx][0])
@@ -1756,8 +1772,8 @@ class NFL_GPP_Simulator:
                                 lineup[ix] = str(choice)
                             except IndexError:
                                 print(lineup, choice, ix)
-                            salary += salaries[choice_idx]
-                            proj += projections[choice_idx]
+                            salary += _scalar(salaries[choice_idx])
+                            proj += _scalar(projections[choice_idx])
                             def_opp = opponents[choice_idx][0]
                             lineup_matchups.append(matchups[choice_idx[0]])
                             player_teams.append(teams[choice_idx][0])
@@ -1827,8 +1843,8 @@ class NFL_GPP_Simulator:
                                 except IndexError:
                                     print(lineup, choice, ix)
                                 in_lineup[choice_idx] = 1
-                                salary += salaries[choice_idx]
-                                proj += projections[choice_idx]
+                                salary += _scalar(salaries[choice_idx])
+                                proj += _scalar(projections[choice_idx])
                                 player_teams.append(teams[choice_idx][0])
                                 lineup_matchups.append(matchups[choice_idx[0]])
                                 if max_players_per_team is not None:
@@ -1914,8 +1930,8 @@ class NFL_GPP_Simulator:
                                 choice_idx = np.nonzero(ids == choice)[0]
                                 lineup[ix] = str(choice)
                                 in_lineup[choice_idx] = 1
-                                salary += salaries[choice_idx]
-                                proj += projections[choice_idx]
+                                salary += _scalar(salaries[choice_idx])
+                                proj += _scalar(projections[choice_idx])
                                 player_teams.append(teams[choice_idx][0])
                                 lineup_matchups.append(matchups[choice_idx[0]])
                                 if teams[choice_idx][0] == def_opp:
@@ -2118,12 +2134,13 @@ class NFL_GPP_Simulator:
                 opponents.append(self.player_dict[k]["Opp"])
                 matchups.append(self.player_dict[k]["Matchup"])
                 pos_list = []
-                for pos in temp_roster_construction:
-                    if pos in self.player_dict[k]["Position"]:
-                        pos_list.append(1)
+                p = _canon_pos_primary(self.player_dict[k].get("Position"))
+                for slot in temp_roster_construction:
+                    if slot == "FLEX":
+                        pos_list.append(1 if p in ("RB","WR","TE") else 0)
                     else:
-                        pos_list.append(0)
-                positions.append(np.array(pos_list))
+                        pos_list.append(1 if p == slot else 0)
+                positions.append(np.array(pos_list, dtype=int))
             in_lineup = np.zeros(shape=len(ids))
             ownership = np.array(ownership)
             salaries = np.array(salaries)
@@ -2268,12 +2285,20 @@ class NFL_GPP_Simulator:
             if player["ID"] == player_id:
                 return player.get(attribute, None)
         return None
-
     def is_valid_for_position(self, player, position_idx):
-        return any(
-            pos in self.position_map[position_idx]
-            for pos in self.get_player_attribute(player, "Position")
-        )
+        # Accept both single-string and iterable positions; canonicalize
+        raw = self.get_player_attribute(player, "Position")
+        try:
+            if isinstance(raw, (list, tuple, set)):
+                pos_list = list(raw)
+            else:
+                pos_list = [raw]
+        except Exception:
+            pos_list = [raw]
+        pos_list = [(_canon_pos_primary(p) if p is not None else "") for p in pos_list]
+        pos_list = [p for p in pos_list if p]
+        return any(p in self.position_map[position_idx] for p in pos_list)
+
 
 
     def sort_lineup_by_start_time(self, lineup):
@@ -2808,14 +2833,66 @@ class NFL_GPP_Simulator:
             top10_p = round(x["Top1Percent"] / self.num_iterations * 100, 2)
             cash_p = round(x["Cashes"] / self.num_iterations * 100, 2)
             if self.site == "dk":
-                # Build player name/id pairs
-                player_parts = [
-                    f"{lu_names[i].replace('#', '-')} ({x['Lineup'][i]})" for i in range(1, 9)
-                ]
-                player_parts.append(
-                    f"{lu_names[0].replace('#', '-')} ({x['Lineup'][0]})"
-                )
 
+                # Build player name/id pairs (deterministic slot mapping)
+                # Reconstruct DK slots from canonical positions
+                slot_names = {"QB": None, "RB1": None, "RB2": None, "WR1": None, "WR2": None, "WR3": None, "TE": None, "FLEX": None, "DST": None}
+                details = []
+                for i, pid in enumerate(x["Lineup"]):
+                    name = lu_names[i]
+                    pos_raw = None
+                    for k, v in self.player_dict.items():
+                        if v.get("ID") == pid:
+                            pos_raw = v.get("Position")
+                            break
+                    pos = _canon_pos_primary(pos_raw)
+                    details.append((pid, name, pos))
+                flex_pool = []
+                for pid, name, pos in details:
+                    label = f"{name.replace('#','-')} ({pid})"
+                    if pos == "QB" and slot_names["QB"] is None:
+                        slot_names["QB"] = label
+                    elif pos == "DST" and slot_names["DST"] is None:
+                        slot_names["DST"] = label
+                    elif pos == "TE" and slot_names["TE"] is None:
+                        slot_names["TE"] = label
+                    elif pos == "RB":
+                        if slot_names["RB1"] is None:
+                            slot_names["RB1"] = label
+                        elif slot_names["RB2"] is None:
+                            slot_names["RB2"] = label
+                        else:
+                            # Only allow skill players to be considered for FLEX
+                            if pos in ("RB","WR","TE"):
+                                flex_pool.append(label)
+                    elif pos == "WR":
+                        if slot_names["WR1"] is None:
+                            slot_names["WR1"] = label
+                        elif slot_names["WR2"] is None:
+                            slot_names["WR2"] = label
+                        elif slot_names["WR3"] is None:
+                            slot_names["WR3"] = label
+                        else:
+                            # Only allow skill players to be considered for FLEX
+                            if pos in ("RB","WR","TE"):
+                                flex_pool.append(label)
+                    else:
+                        # Only allow skill players to be considered for FLEX
+                        if pos in ("RB","WR","TE"):
+                            flex_pool.append(label)
+                if slot_names["FLEX"] is None and flex_pool:
+                    slot_names["FLEX"] = flex_pool[0]
+                player_parts = [
+                    slot_names.get("QB",""),
+                    slot_names.get("RB1",""),
+                    slot_names.get("RB2",""),
+                    slot_names.get("WR1",""),
+                    slot_names.get("WR2",""),
+                    slot_names.get("WR3",""),
+                    slot_names.get("TE",""),
+                    slot_names.get("FLEX",""),
+                    slot_names.get("DST",""),
+                ]
                 if self.use_contest_data:
                     roi_p = round(
                         x["ROI"] / self.entry_fee / self.num_iterations * 100, 2

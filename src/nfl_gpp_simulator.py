@@ -1203,20 +1203,69 @@ class NFL_GPP_Simulator:
                     }
                     z = 0
 
-                    while z < 9:
-                        for t in temp_roster_construction:
-                            if position_counts[t] < temp_roster_construction.count(t):
-                                for l in lineup_copy:
-                                    player_info = id_to_player_dict.get(l)
-                                    if player_info and t in player_info["Position"]:
-                                        shuffled_lu.append(l)
-                                        lineup_copy.remove(l)
-                                        position_counts[t] += 1
-                                        z += 1
-                                        if z == 9:
-                                            break
-                            if z == 9:
-                                break
+                    # Rebuild DK slots deterministically with canonical positions
+                    id_to_player_dict = {v.get("ID"): v for v in self.player_dict.values()}
+                    # slot map we will fill
+                    slot_names = {"QB": None, "RB1": None, "RB2": None, "WR1": None, "WR2": None, "WR3": None, "TE": None, "FLEX": None, "DST": None}
+                    # Collect (id, pos)
+                    details = []
+                    for l in list(lineup):
+                        rec = id_to_player_dict.get(l)
+                        if not rec:
+                            # Missing ID in dictionary; skip and continue safely
+                            continue
+                        pos = _canon_pos_primary(rec.get("Position"))
+                        details.append((l, pos))
+                    # First pass: primaries
+                    flex_pool = []
+                    for pid, pos in details:
+                        if pos == "QB" and slot_names["QB"] is None:
+                            slot_names["QB"] = pid
+                        elif pos == "DST" and slot_names["DST"] is None:
+                            slot_names["DST"] = pid
+                        elif pos == "TE" and slot_names["TE"] is None:
+                            slot_names["TE"] = pid
+                        elif pos == "RB":
+                            if slot_names["RB1"] is None:
+                                slot_names["RB1"] = pid
+                            elif slot_names["RB2"] is None:
+                                slot_names["RB2"] = pid
+                            else:
+                                flex_pool.append(pid)
+                        elif pos == "WR":
+                            if slot_names["WR1"] is None:
+                                slot_names["WR1"] = pid
+                            elif slot_names["WR2"] is None:
+                                slot_names["WR2"] = pid
+                            elif slot_names["WR3"] is None:
+                                slot_names["WR3"] = pid
+                            else:
+                                flex_pool.append(pid)
+                        else:
+                            # Non-skill (or unknown) does not go to FLEX
+                            pass
+                    # FLEX: RB/WR/TE only
+                    if slot_names["FLEX"] is None:
+                        # include TE to flex_pool if it overflowed primaries
+                        if slot_names["TE"] is not None:
+                            # already assigned primary TE; extras would have been in flex_pool above
+                            pass
+                        if flex_pool:
+                            slot_names["FLEX"] = flex_pool[0]
+                    # If any core slot is still missing, bail out gracefully to avoid hanging
+                    core_slots = ["QB","RB1","RB2","WR1","WR2","WR3","TE","DST"]
+                    if any(slot_names[s] is None for s in core_slots):
+                        # skip malformed saved lineup
+                        continue
+                    # Construct shuffled_lu matching DK order
+                    shuffled_lu = [
+                        slot_names["QB"], slot_names["RB1"], slot_names["RB2"],
+                        slot_names["WR1"], slot_names["WR2"], slot_names["WR3"],
+                        slot_names["TE"], slot_names["FLEX"], slot_names["DST"],
+                    ]
+                    lineup_copy = []  # no longer needed; keep variable around for later code
+                    position_counts = {}  # not used with deterministic mapping
+
                     lineup_list = sorted(shuffled_lu)           
                     lineup_set = frozenset(lineup_list)
 
