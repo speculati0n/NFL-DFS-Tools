@@ -427,6 +427,16 @@ class NFL_Optimizer:
                         if info:
                             break
 
+            if not info:
+                parts = name_canon.split()
+                if len(parts) >= 2:
+                    init_alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
+                    info = self.player_ids.get((init_alias, pos)) or \
+                           self.player_ids.get((f"{init_alias} {team}", pos))
+                    for alias in (init_alias, f"{init_alias} {team}"):
+                        if alias.strip() and alias not in name_variants:
+                            name_variants.append(alias)
+
             rec["_tried_aliases"] = name_variants
             if info:
                 rec["ID"] = info["ID"]
