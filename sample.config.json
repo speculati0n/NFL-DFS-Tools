@@ -33,6 +33,11 @@
   "team_limits": {},
   "custom_correlations": {},
 
+  "name_aliases": {
+    "Pat Mahomes": "Patrick Mahomes",
+    "Giants D": "New York Giants DST"
+  },
+
   "rl": {
     "epsilon": 0.10,
     "softmax_temperature": 0.85,
