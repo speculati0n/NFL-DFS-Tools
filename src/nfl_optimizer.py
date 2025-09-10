@@ -10,6 +10,7 @@ import pulp as plp
 import copy
 import itertools
 import re
+import difflib
 
 def _normalize_pos_key_and_value(rec):
     # Ensure dict has 'Position' key with normalized value (D/DEF/DS/D/ST->DST).
@@ -95,6 +96,8 @@ class NFL_Optimizer:
         self.stack_exposure_df = None
 
         self.load_config()
+        # optional mapping of projection names -> player_ids names
+        self.name_aliases = self.config.get("name_aliases", {})
         # Honor off-optimal floor from config (0..1). 0 disables.
         self.max_pct_off_optimal = float(self.config.get("max_pct_off_optimal", 0.0))
         if not (0.0 <= self.max_pct_off_optimal <= 1.0):
@@ -372,10 +375,38 @@ class NFL_Optimizer:
                 rec["Position"] = "DST"
             name_key = _norm_name(rec.get("Name", "")).replace("-", "#")
             info = self.player_ids.get((name_key, pos))
+            # Attempt alias lookup when direct match fails
+            if not info and getattr(self, "name_aliases", {}):
+                alias_name = self.name_aliases.get(rec.get("Name")) or self.name_aliases.get(name_key)
+                if alias_name:
+                    alias_key = re.sub(r"\s+", " ", re.sub(r"\.", "", str(alias_name).strip()))
+                    alias_key = alias_key.replace("-", "#").lower()
+                    info = self.player_ids.get((alias_key, pos))
             if info:
                 rec["ID"] = info["ID"]
                 if not rec.get("TeamAbbrev"):
                     rec["TeamAbbrev"] = info.get("TeamAbbrev", "")
+            else:
+                # Capture potential matches to aid debugging
+                team = str(rec.get("TeamAbbrev", "") or "").upper()
+                last = re.sub(r"[^a-z]", "", rec.get("Name", "").split()[-1].lower())
+                query = f"{last} {team}".strip()
+                cand_map = {}
+                for (nkey, p), inf in self.player_ids.items():
+                    if p != pos:
+                        continue
+                    lname = nkey.split()[-1]
+                    cand = f"{lname} {inf.get('TeamAbbrev', '')}".strip().lower()
+                    cand_map[cand] = inf
+                matches = difflib.get_close_matches(query, list(cand_map.keys()), n=5, cutoff=0.6)
+                rec["_match_candidates"] = [
+                    {
+                        "name": self.player_ids_by_id[cand_map[m]["ID"]]["Name"],
+                        "team": cand_map[m].get("TeamAbbrev", ""),
+                        "id": cand_map[m]["ID"],
+                    }
+                    for m in matches
+                ]
 
         return df
 
@@ -421,9 +452,17 @@ class NFL_Optimizer:
     def assertPlayerDict(self):
         for p, s in list(self.player_dict.items()):
             if s["ID"] == 0 or s["ID"] == "" or s["ID"] is None:
+                cands = s.get("_match_candidates", [])
+                cand_str = "; ".join(
+                    f"{c['name']} ({c['team']}) id:{c['id']}" for c in cands
+                ) or "no close matches found"
                 print(
                     s["Name"]
-                    + " name mismatch between projections and player ids, excluding from player_dict"
+                    + " name mismatch between projections and player ids, "
+                    "excluding from player_dict. Names are normalized by removing "
+                    "periods, collapsing whitespace, and replacing '-' with '#'. "
+                    "Ensure team abbreviations and positions match between files. "
+                    f"Potential matches: {cand_str}"
                 )
                 player, pos, team = p
                 if team in self.players_by_team and pos in self.players_by_team[team]:
