@@ -31,7 +31,7 @@ from random import shuffle, choice
 from utils import get_data_path, get_config_path
 from selection_exposures import select_lineups, report_lineup_exposures
 from stack_metrics import analyze_lineup
-from player_ids_flex import load_player_ids_flex, dst_id_by_team
+from player_ids_flex import load_player_ids_flex, dst_id_by_team, _norm_name
 
 
 # --- begin Player dataclass (optimizer) ---
@@ -323,7 +323,6 @@ class NFL_Optimizer:
         """
         import os
         import pandas as pd
-        import re
 
         self.player_ids_path = path
         if not os.path.exists(path):
@@ -344,8 +343,17 @@ class NFL_Optimizer:
             pos = str(r["Position"]).strip().upper()
             pid = int(r["ID"])
             team = str(r.get("TeamAbbrev", "") or "").upper()
-            key_name = re.sub(r"\s+", " ", re.sub(r"\.", "", name)).replace("-", "#").lower()
+            canon = _norm_name(name)
+            key_name = canon.replace("-", "#")
             self.player_ids[(key_name, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
+            # Alias: first initial + last name
+            parts = canon.split()
+            if len(parts) >= 2:
+                alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
+                if (alias, pos) not in self.player_ids:
+                    self.player_ids[(alias, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
+                else:
+                    print(f"alias collision for {alias} at position {pos}")
 
         self.player_ids_by_id = {
             int(r["ID"]): {
@@ -362,8 +370,7 @@ class NFL_Optimizer:
             if pos in ("D", "DEF"):
                 pos = "DST"
                 rec["Position"] = "DST"
-            name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", rec.get("Name", "")).strip())
-            name_key = name_key.replace("-", "#").lower()
+            name_key = _norm_name(rec.get("Name", "")).replace("-", "#")
             info = self.player_ids.get((name_key, pos))
             if info:
                 rec["ID"] = info["ID"]
@@ -432,7 +439,7 @@ class NFL_Optimizer:
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
-                player_name = row["name"].replace("-", "#").lower().strip()
+                player_name = _norm_name(row["name"]).replace("-", "#")
                 try:
                     fpts = float(row["projections_proj"])
                 except:
