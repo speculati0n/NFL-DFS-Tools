@@ -327,6 +327,40 @@ class NFL_Optimizer:
         import os
         import pandas as pd
 
+        def _name_variants(canon: str, team: str):
+            parts = canon.split()
+            variants = [
+                canon,
+                canon.replace("-", "#"),
+                canon.replace("-", " "),
+                canon.replace("-", ""),
+            ]
+            if len(parts) >= 2:
+                initial = parts[0][0]
+                last = parts[-1]
+                fi = f"{initial} {last}"
+                variants.extend([
+                    fi,
+                    fi.replace("-", "#"),
+                    fi.replace("-", " "),
+                    fi.replace("-", ""),
+                ])
+                if team:
+                    fi_team = f"{fi} {team}"
+                    variants.extend([
+                        fi_team,
+                        fi_team.replace("-", "#"),
+                        fi_team.replace("-", " "),
+                        fi_team.replace("-", ""),
+                    ])
+            seen = set()
+            out = []
+            for v in variants:
+                if v and v not in seen:
+                    seen.add(v)
+                    out.append(v)
+            return out
+
         self.player_ids_path = path
         if not os.path.exists(path):
             # Fallback to repo data location if present
@@ -347,29 +381,12 @@ class NFL_Optimizer:
             pid = int(r["ID"])
             team = str(r.get("TeamAbbrev", "") or "").upper()
             canon = _norm_name(name)
-            key_name = canon.replace("-", "#")
             info = {"ID": pid, "Position": pos, "TeamAbbrev": team}
-            # Insert multiple key variants to handle hyphen/space/no-delimiter names
-            variants = [
-                key_name,
-                canon,
-                canon.replace("-", " "),
-                canon.replace("-", ""),
-            ]
-            for nk in variants:
-                self.player_ids[(nk, pos)] = info
-            # Alias: first initial + last name
-            parts = canon.split()
-            if len(parts) >= 2:
-                alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
-                if (alias, pos) not in self.player_ids:
-                    self.player_ids[(alias, pos)] = info
+            for nk in _name_variants(canon, team):
+                if (nk, pos) not in self.player_ids:
+                    self.player_ids[(nk, pos)] = info
                 else:
-                    print(f"alias collision for {alias} at position {pos}")
-                # Alias with team context
-                alias_with_team = f"{parts[0][0]} {parts[-1]} {team}".replace("-", "#")
-                if (alias_with_team, pos) not in self.player_ids:
-                    self.player_ids[(alias_with_team, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
+                    print(f"alias collision for {nk} at position {pos}")
 
         self.player_ids_by_id = {
             int(r["ID"]): {
@@ -387,31 +404,36 @@ class NFL_Optimizer:
                 pos = "DST"
                 rec["Position"] = "DST"
 
+            team = str(rec.get("TeamAbbrev") or rec.get("Team") or "").upper()
+            name_canon = _norm_name(rec.get("Name"))
+            name_variants = _name_variants(name_canon, team)
+            info = None
+            for nk in name_variants:
+                info = self.player_ids.get((nk, pos))
+                if info:
+                    break
+
             if not info and getattr(self, "name_aliases", {}):
-                alias_name = None
                 for nk in [rec.get("Name")] + name_variants:
                     if nk in self.name_aliases:
-                        alias_name = self.name_aliases.get(nk)
-                        break
-                if alias_name:
-                    alias_canon = _norm_name(alias_name)
-                    alias_variants = [
-                        alias_canon.replace("-", "#"),
-                        alias_canon,
-                        alias_canon.replace("-", " "),
-                        alias_canon.replace("-", ""),
-                    ]
-                    for ak in alias_variants:
-                        info = self.player_ids.get((ak, pos))
+                        alias_canon = _norm_name(self.name_aliases[nk])
+                        alias_variants = _name_variants(alias_canon, team)
+                        for ak in alias_variants:
+                            if ak not in name_variants:
+                                name_variants.append(ak)
+                            info = self.player_ids.get((ak, pos))
+                            if info:
+                                break
                         if info:
                             break
+
+            rec["_tried_aliases"] = name_variants
             if info:
                 rec["ID"] = info["ID"]
                 if not rec.get("TeamAbbrev"):
                     rec["TeamAbbrev"] = info.get("TeamAbbrev", "")
             else:
                 # Capture potential matches to aid debugging
-                team = str(rec.get("TeamAbbrev", "") or "").upper()
                 last = re.sub(r"[^a-z]", "", rec.get("Name", "").split()[-1].lower())
                 query = f"{last} {team}".strip()
                 cand_map = {}
@@ -479,11 +501,15 @@ class NFL_Optimizer:
                 cand_str = "; ".join(
                     f"{c['name']} ({c['team']}) id:{c['id']}" for c in cands
                 ) or "no close matches found"
+                canon = _norm_name(s.get("Name"))
+                tried = s.get("_tried_aliases", [])
+                alias_str = ", ".join(tried) if tried else "none"
                 print(
-                    s["Name"]
-                    + " name mismatch between projections and player ids, "
-                    "excluding from player_dict. Names are normalized by removing "
-                    "periods, collapsing whitespace, and replacing '-' with '#'. "
+                    f"{s['Name']} (canon: {canon}) name mismatch between projections and player ids, "
+                    "excluding from player_dict. Tried aliases: "
+                    f"{alias_str}. Names are normalized by stripping periods, "
+                    "suffixes (jr/sr/ii/iii/iv/v), trailing roman numerals, and "
+                    "lower-casing. Hyphens may appear as '-', '#', spaces, or be removed. "
                     "Ensure team abbreviations and positions match between files. "
                     f"Potential matches: {cand_str}"
                 )
@@ -503,17 +529,13 @@ class NFL_Optimizer:
             for row in reader:
                 canon = _norm_name(row["name"])
                 if getattr(self, "name_aliases", {}):
-                    lookup_keys = [
-                        row["name"],
-                        canon,
-                        canon.replace("-", "#"),
-                        canon.replace("-", " "),
-                        canon.replace("-", ""),
-                    ]
-                    for lk in lookup_keys:
+                    alias = None
+                    for lk in (row["name"], canon, canon.replace("-", "#")):
                         if lk in self.name_aliases:
-                            canon = _norm_name(self.name_aliases[lk])
+                            alias = self.name_aliases[lk]
                             break
+                    if alias:
+                        canon = _norm_name(alias)
                 player_name = canon.replace("-", "#")
                 try:
                     fpts = float(row["projections_proj"])
