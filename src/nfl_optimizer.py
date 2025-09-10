@@ -329,21 +329,36 @@ class NFL_Optimizer:
 
         def _name_variants(canon: str, team: str):
             parts = canon.split()
-            base = [canon]
+            variants = [
+                canon,
+                canon.replace("-", "#"),
+                canon.replace("-", " "),
+                canon.replace("-", ""),
+            ]
             if len(parts) >= 2:
                 initial = parts[0][0]
                 last = parts[-1]
                 fi = f"{initial} {last}"
-                base.append(fi)
+                variants.extend([
+                    fi,
+                    fi.replace("-", "#"),
+                    fi.replace("-", " "),
+                    fi.replace("-", ""),
+                ])
                 if team:
-                    base.append(f"{fi} {team}")
+                    fi_team = f"{fi} {team}"
+                    variants.extend([
+                        fi_team,
+                        fi_team.replace("-", "#"),
+                        fi_team.replace("-", " "),
+                        fi_team.replace("-", ""),
+                    ])
             seen = set()
             out = []
-            for b in base:
-                for v in [b, b.replace("-", "#"), b.replace("-", " "), b.replace("-", "")]:
-                    if v and v not in seen:
-                        seen.add(v)
-                        out.append(v)
+            for v in variants:
+                if v and v not in seen:
+                    seen.add(v)
+                    out.append(v)
             return out
 
         self.player_ids_path = path
@@ -392,16 +407,6 @@ class NFL_Optimizer:
             team = str(rec.get("TeamAbbrev") or rec.get("Team") or "").upper()
             name_canon = _norm_name(rec.get("Name"))
             name_variants = _name_variants(name_canon, team)
-            name_variants.extend([
-                name_canon.replace("-", "#"),
-                name_canon.replace("-", " "),
-                name_canon.replace("-", ""),
-            ])
-            # preserve order while removing duplicates/empties
-            seen = set()
-            name_variants = [
-                v for v in name_variants if v and not (v in seen or seen.add(v))
-            ]
             info = None
             for nk in name_variants:
                 info = self.player_ids.get((nk, pos))
