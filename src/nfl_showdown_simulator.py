@@ -21,6 +21,7 @@ from numba import njit, jit
 import sys
 
 from utils import get_data_path, get_config_path
+from player_ids_flex import _norm_name
 
 @jit(nopython=True)  
 def salary_boost(salary, max_salary):
@@ -312,14 +313,23 @@ class NFL_Showdown_Simulator:
                     if row.get("firstname") and row.get("lastname"):
                         names.add(f"{row['firstname']} {row['lastname']}")
                     for name in names:
-                        player_name = name.replace("-", "#").lower().strip()
-                        if (player_name, position, team) in self.player_dict:
-                            self.player_dict[(player_name, position, team)]["ID"] = str(row["draftableid"])
-                            self.player_dict[(player_name, position, team)]["Team"] = team
-                            self.player_dict[(player_name, position, team)]["Opp"] = ""
-                            self.player_dict[(player_name, position, team)]["Matchup"] = ""
-                            self.player_dict[(player_name, position, team)]["UniqueKey"] = str(row["draftableid"])
-                            break
+                        canon = _norm_name(name)
+                        candidates = [canon.replace("-", "#")]
+                        parts = canon.split()
+                        if len(parts) >= 2:
+                            alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
+                            candidates.append(alias)
+                        for player_name in candidates:
+                            if (player_name, position, team) in self.player_dict:
+                                self.player_dict[(player_name, position, team)]["ID"] = str(row["draftableid"])
+                                self.player_dict[(player_name, position, team)]["Team"] = team
+                                self.player_dict[(player_name, position, team)]["Opp"] = ""
+                                self.player_dict[(player_name, position, team)]["Matchup"] = ""
+                                self.player_dict[(player_name, position, team)]["UniqueKey"] = str(row["draftableid"])
+                                break
+                        else:
+                            continue
+                        break
                     self.id_name_dict[str(row["draftableid"])] = row.get("displayname", "")
                 else:
                     team = row["team"]
@@ -334,14 +344,24 @@ class NFL_Showdown_Simulator:
                         names.add(f"{row['first name']} {row['last name']}")
                     for position in ["CPT", "FLEX"]:
                         for name in names:
-                            player_name = name.replace("-", "#").lower().strip()
-                            if (player_name, position, team) in self.player_dict:
-                                key = f"{position}:{row.get('id', '')}"
-                                self.player_dict[(player_name, position, team)]["UniqueKey"] = key
-                                self.player_dict[(player_name, position, team)]["ID"] = row.get("id", "")
-                                self.player_dict[(player_name, position, team)]["Team"] = team
-                                self.player_dict[(player_name, position, team)]["Opp"] = ""
-                                self.player_dict[(player_name, position, team)]["Matchup"] = ""
+                            canon = _norm_name(name)
+                            candidates = [canon.replace("-", "#")]
+                            parts = canon.split()
+                            if len(parts) >= 2:
+                                alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
+                                candidates.append(alias)
+                            for player_name in candidates:
+                                if (player_name, position, team) in self.player_dict:
+                                    key = f"{position}:{row.get('id', '')}"
+                                    self.player_dict[(player_name, position, team)]["UniqueKey"] = key
+                                    self.player_dict[(player_name, position, team)]["ID"] = row.get("id", "")
+                                    self.player_dict[(player_name, position, team)]["Team"] = team
+                                    self.player_dict[(player_name, position, team)]["Opp"] = ""
+                                    self.player_dict[(player_name, position, team)]["Matchup"] = ""
+                                    break
+                            else:
+                                continue
+                            break
                     self.id_name_dict[str(row.get("id", ""))] = row.get("nickname") or row.get("displayname", "")
 
     def load_correlation_rules(self):
@@ -349,7 +369,7 @@ class NFL_Showdown_Simulator:
             for primary_player in self.correlation_rules.keys():
                 # Convert primary_player to the consistent format
                 formatted_primary_player = (
-                    primary_player.replace("-", "#").lower().strip()
+                    _norm_name(primary_player).replace("-", "#")
                 )
                 for (
                     player_name,
@@ -362,7 +382,7 @@ class NFL_Showdown_Simulator:
                         ].items():
                             # Convert second_entity to the consistent format
                             formatted_second_entity = (
-                                second_entity.replace("-", "#").lower().strip()
+                                _norm_name(second_entity).replace("-", "#")
                             )
 
                             # Check if the formatted_second_entity is a player name
@@ -421,11 +441,9 @@ class NFL_Showdown_Simulator:
     def load_correlation_rules(self):
         if len(self.correlation_rules.keys()) > 0:
             for c in self.correlation_rules.keys():
+                canon_c = _norm_name(c).replace("-", "#")
                 for k in self.player_dict:
-                    if (
-                        c.replace("-", "#").lower().strip()
-                        in self.player_dict[k].values()
-                    ):
+                    if canon_c in self.player_dict[k].values():
                         for v in self.correlation_rules[c].keys():
                             self.player_dict[k]["Correlations"][
                                 v
@@ -443,7 +461,7 @@ class NFL_Showdown_Simulator:
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
-                player_name = row["name"].replace("-", "#").lower().strip()
+                player_name = _norm_name(row["name"]).replace("-", "#")
                 try:
                     fpts = float(row["projections_proj"])
                 except:
