@@ -348,13 +348,22 @@ class NFL_Optimizer:
             team = str(r.get("TeamAbbrev", "") or "").upper()
             canon = _norm_name(name)
             key_name = canon.replace("-", "#")
-            self.player_ids[(key_name, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
+            info = {"ID": pid, "Position": pos, "TeamAbbrev": team}
+            # Insert multiple key variants to handle hyphen/space/no-delimiter names
+            variants = [
+                key_name,
+                canon,
+                canon.replace("-", " "),
+                canon.replace("-", ""),
+            ]
+            for nk in variants:
+                self.player_ids[(nk, pos)] = info
             # Alias: first initial + last name
             parts = canon.split()
             if len(parts) >= 2:
                 alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
                 if (alias, pos) not in self.player_ids:
-                    self.player_ids[(alias, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
+                    self.player_ids[(alias, pos)] = info
                 else:
                     print(f"alias collision for {alias} at position {pos}")
 
@@ -373,15 +382,37 @@ class NFL_Optimizer:
             if pos in ("D", "DEF"):
                 pos = "DST"
                 rec["Position"] = "DST"
-            name_key = _norm_name(rec.get("Name", "")).replace("-", "#")
-            info = self.player_ids.get((name_key, pos))
+            name_canon = _norm_name(rec.get("Name", ""))
+            name_variants = [
+                name_canon.replace("-", "#"),
+                name_canon,
+                name_canon.replace("-", " "),
+                name_canon.replace("-", ""),
+            ]
+            info = None
+            for nk in name_variants:
+                info = self.player_ids.get((nk, pos))
+                if info:
+                    break
             # Attempt alias lookup when direct match fails
             if not info and getattr(self, "name_aliases", {}):
-                alias_name = self.name_aliases.get(rec.get("Name")) or self.name_aliases.get(name_key)
+                alias_name = None
+                for nk in [rec.get("Name")] + name_variants:
+                    if nk in self.name_aliases:
+                        alias_name = self.name_aliases.get(nk)
+                        break
                 if alias_name:
-                    alias_key = re.sub(r"\s+", " ", re.sub(r"\.", "", str(alias_name).strip()))
-                    alias_key = alias_key.replace("-", "#").lower()
-                    info = self.player_ids.get((alias_key, pos))
+                    alias_canon = _norm_name(alias_name)
+                    alias_variants = [
+                        alias_canon.replace("-", "#"),
+                        alias_canon,
+                        alias_canon.replace("-", " "),
+                        alias_canon.replace("-", ""),
+                    ]
+                    for ak in alias_variants:
+                        info = self.player_ids.get((ak, pos))
+                        if info:
+                            break
             if info:
                 rec["ID"] = info["ID"]
                 if not rec.get("TeamAbbrev"):
@@ -478,7 +509,20 @@ class NFL_Optimizer:
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
-                player_name = _norm_name(row["name"]).replace("-", "#")
+                canon = _norm_name(row["name"])
+                if getattr(self, "name_aliases", {}):
+                    lookup_keys = [
+                        row["name"],
+                        canon,
+                        canon.replace("-", "#"),
+                        canon.replace("-", " "),
+                        canon.replace("-", ""),
+                    ]
+                    for lk in lookup_keys:
+                        if lk in self.name_aliases:
+                            canon = _norm_name(self.name_aliases[lk])
+                            break
+                player_name = canon.replace("-", "#")
                 try:
                     fpts = float(row["projections_proj"])
                 except:
