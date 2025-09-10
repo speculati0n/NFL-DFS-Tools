@@ -357,6 +357,10 @@ class NFL_Optimizer:
                     self.player_ids[(alias, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
                 else:
                     print(f"alias collision for {alias} at position {pos}")
+                # Alias with team context
+                alias_with_team = f"{parts[0][0]} {parts[-1]} {team}".replace("-", "#")
+                if (alias_with_team, pos) not in self.player_ids:
+                    self.player_ids[(alias_with_team, pos)] = {"ID": pid, "Position": pos, "TeamAbbrev": team}
 
         self.player_ids_by_id = {
             int(r["ID"]): {
@@ -375,7 +379,16 @@ class NFL_Optimizer:
                 rec["Position"] = "DST"
             name_key = _norm_name(rec.get("Name", "")).replace("-", "#")
             info = self.player_ids.get((name_key, pos))
-            # Attempt alias lookup when direct match fails
+            if not info:
+                parts = name_key.split()
+                if len(parts) >= 2:
+                    alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
+                    info = self.player_ids.get((alias, pos))
+                    if not info:
+                        team = str(rec.get("TeamAbbrev", "") or "").upper()
+                        alias_with_team = f"{parts[0][0]} {parts[-1]} {team}".replace("-", "#")
+                        info = self.player_ids.get((alias_with_team, pos))
+            # Attempt alias lookup when direct and first-initial matches fail
             if not info and getattr(self, "name_aliases", {}):
                 alias_name = self.name_aliases.get(rec.get("Name")) or self.name_aliases.get(name_key)
                 if alias_name:
