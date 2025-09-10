@@ -31,8 +31,7 @@ def _norm_name(n: str) -> str:
     # Drop common suffixes and trailing roman numerals
     n = re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", "", n, flags=re.IGNORECASE)
     n = re.sub(r"\b[ivxlcdm]+\b$", "", n, flags=re.IGNORECASE)
-    # Collapse any whitespace introduced by removals
-    n = re.sub(r"\s+", " ", n).strip()
+    n = n.strip()
     return n.lower()
 
 def _detect_schema(cols):
