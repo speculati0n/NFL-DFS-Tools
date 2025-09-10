@@ -22,17 +22,9 @@ import sys
 
 from utils import get_data_path, get_config_path
 
-@jit(nopython=True)
+@jit(nopython=True)  
 def salary_boost(salary, max_salary):
     return (salary / max_salary) ** 2
-
-
-def _normalize_name(name: str) -> str:
-    """Normalize player names to ensure consistent dictionary keys."""
-    normalized = name.replace("-", "#").lower().strip()
-    normalized = normalized.replace(".", "")
-    normalized = re.sub(r"\s+(jr|sr|ii|iii|iv|v|vi|vii|viii|ix|x)$", "", normalized)
-    return normalized
 
 class NFL_Showdown_Simulator:
     def __init__(
@@ -320,7 +312,7 @@ class NFL_Showdown_Simulator:
                     if row.get("firstname") and row.get("lastname"):
                         names.add(f"{row['firstname']} {row['lastname']}")
                     for name in names:
-                        player_name = _normalize_name(name)
+                        player_name = name.replace("-", "#").lower().strip()
                         if (player_name, position, team) in self.player_dict:
                             self.player_dict[(player_name, position, team)]["ID"] = str(row["draftableid"])
                             self.player_dict[(player_name, position, team)]["Team"] = team
@@ -342,7 +334,7 @@ class NFL_Showdown_Simulator:
                         names.add(f"{row['first name']} {row['last name']}")
                     for position in ["CPT", "FLEX"]:
                         for name in names:
-                            player_name = _normalize_name(name)
+                            player_name = name.replace("-", "#").lower().strip()
                             if (player_name, position, team) in self.player_dict:
                                 key = f"{position}:{row.get('id', '')}"
                                 self.player_dict[(player_name, position, team)]["UniqueKey"] = key
@@ -357,7 +349,7 @@ class NFL_Showdown_Simulator:
             for primary_player in self.correlation_rules.keys():
                 # Convert primary_player to the consistent format
                 formatted_primary_player = (
-                    _normalize_name(primary_player)
+                    primary_player.replace("-", "#").lower().strip()
                 )
                 for (
                     player_name,
@@ -370,7 +362,7 @@ class NFL_Showdown_Simulator:
                         ].items():
                             # Convert second_entity to the consistent format
                             formatted_second_entity = (
-                                _normalize_name(second_entity)
+                                second_entity.replace("-", "#").lower().strip()
                             )
 
                             # Check if the formatted_second_entity is a player name
@@ -431,7 +423,7 @@ class NFL_Showdown_Simulator:
             for c in self.correlation_rules.keys():
                 for k in self.player_dict:
                     if (
-                        _normalize_name(c)
+                        c.replace("-", "#").lower().strip()
                         in self.player_dict[k].values()
                     ):
                         for v in self.correlation_rules[c].keys():
@@ -451,7 +443,7 @@ class NFL_Showdown_Simulator:
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
-                player_name = _normalize_name(row["name"])
+                player_name = row["name"].replace("-", "#").lower().strip()
                 try:
                     fpts = float(row["projections_proj"])
                 except:
