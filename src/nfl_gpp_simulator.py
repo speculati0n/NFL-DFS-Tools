@@ -69,7 +69,7 @@ def _sf(x, default=0.0):
         return float(s)
     except Exception:
         return float(default)
-from player_ids_flex import load_player_ids_flex, dst_id_by_team
+from player_ids_flex import load_player_ids_flex, dst_id_by_team, _norm_name
 import json
 import math
 import os
@@ -803,13 +803,19 @@ class NFL_GPP_Simulator:
             self.id_position_dict[pid] = pos
             self.id_teamabbrev_dict[pid] = team
             self.id_name_dict[pid] = name
-            name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", name).strip()).replace("-", "#").lower()
-            self.name_pos_to_id[(name_key, pos)] = pid
+            canon = _norm_name(name)
+            key_name = canon.replace("-", "#")
+            self.name_pos_to_id[(key_name, pos)] = pid
+            parts = canon.split()
+            if len(parts) >= 2:
+                alias = f"{parts[0][0]} {parts[-1]}".replace("-", "#")
+                if (alias, pos) not in self.name_pos_to_id:
+                    self.name_pos_to_id[(alias, pos)] = pid
 
         # Match IDs onto existing player_dict entries
 
         for key, rec in list(self.player_dict.items()):
-            name_key = re.sub(r"\s+", " ", re.sub(r"\.", "", rec.get("Name", "")).strip()).replace("-", "#").lower()
+            name_key = _norm_name(rec.get("Name", "")).replace("-", "#")
             pos = rec.get("Position")
             if isinstance(pos, list):
                 pos = pos[0] if pos else ""
@@ -880,7 +886,7 @@ class NFL_GPP_Simulator:
             for primary_player in self.correlation_rules.keys():
                 # Convert primary_player to the consistent format
                 formatted_primary_player = (
-                    primary_player.replace("-", "#").lower().strip()
+                    _norm_name(primary_player).replace("-", "#")
                 )
                 for (
                     player_name,
@@ -893,7 +899,7 @@ class NFL_GPP_Simulator:
                         ].items():
                             # Convert second_entity to the consistent format
                             formatted_second_entity = (
-                                second_entity.replace("-", "#").lower().strip()
+                                _norm_name(second_entity).replace("-", "#")
                             )
 
                             # Check if the formatted_second_entity is a player name
@@ -931,7 +937,7 @@ class NFL_GPP_Simulator:
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
             for row in reader:
-                player_name = row["name"].replace("-", "#").lower().strip()
+                player_name = _norm_name(row["name"]).replace("-", "#")
                 try:
                     fpts = float(row["projections_proj"])
                 except:
