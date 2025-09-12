@@ -20,7 +20,11 @@ from dfs.constraints import (
     DEFAULT_SALARY_CAP,
     DEFAULT_MIN_SPEND_PCT,
 )
-from stack_metrics import analyze_lineup, compute_presence_and_counts, compute_features, classify_bucket
+from dfs.stacks import (
+    compute_presence_and_counts,
+    classify_bucket,
+    compute_features,
+)
 from dfs.rl_reward import compute_reward, compute_partial_reward
 
 # explicit slot order
