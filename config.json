@@ -16,6 +16,7 @@
     "default_skillpos_var": 0.5,
     "default_def_var": 0.5,
     "allow_qb_vs_dst": false,
+    "require_bring_back": false,
     "at_most": {
         "1": []
     },
@@ -30,7 +31,7 @@
                     "WR",
                     "TE"
                 ],
-                "count": 2,
+                "count": 1,
                 "type": "same-team",
                 "exclude_teams": []
             },
@@ -92,8 +93,8 @@
     "max_double_stack_rate": 0.35,
     "max_opp_wr_bringback_rate": 0.35,
     "target_flex_mix": {
-        "WR": 0.62,
-        "RB": 0.33,
+        "WR": 0.55,
+        "RB": 0.40,
         "TE": 0.05
     },
     "rl": {
@@ -111,7 +112,7 @@
             "salary_floor_penalty_per_100": -0.25,
             "stack_bonus": {
                 "QB+WR": 2.0,
-                "QB+WR+OppWR": 3.0,
+                "QB+WR+OppWR": 0.0,
                 "QB+TE": 1.25,
                 "WR vs OppWR": 0.5
             },
