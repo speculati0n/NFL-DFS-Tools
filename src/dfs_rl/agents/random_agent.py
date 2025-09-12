@@ -16,8 +16,7 @@ class RandomAgent:
         self.salaries = salaries.astype(float)
         self.tau = float(tau)
 
-    def act(self, obs, info=None):
-        mask = info.get("action_mask") if info and isinstance(info, dict) else obs
+    def act(self, mask):
         idx = np.where(mask == 1)[0]
         if len(idx) == 0:
             return 0

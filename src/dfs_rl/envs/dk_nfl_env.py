@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Dict, Any, Iterable
+from typing import Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -21,7 +21,7 @@ from dfs.constraints import (
     DEFAULT_MIN_SPEND_PCT,
 )
 from stack_metrics import analyze_lineup, compute_presence_and_counts, compute_features, classify_bucket
-
+from dfs.rl_reward import compute_reward, compute_partial_reward
 
 # explicit slot order
 SLOTS = ["QB", "RB1", "RB2", "WR1", "WR2", "WR3", "TE", "FLEX", "DST"]
@@ -172,7 +172,7 @@ class DKNFLEnv(gym.Env if gym else object):
         reward = float(delta)
         info_extra: Dict[str, Any] = {}
         if done:
-            full_r = compute_reward_simple(self.cur_row, self.rl_reward_cfg)
+            full_r = compute_reward(self.cur_row, self.rl_reward_cfg)
             reward += float(full_r - new_r)
             if not validate_lineup(
                 self.lineup, cap=DEFAULT_SALARY_CAP, min_pct=self.min_salary_pct

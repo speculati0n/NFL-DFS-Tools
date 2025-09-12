@@ -120,7 +120,6 @@ def _any_vs_dst(offense: List[Dict[str,Any]], dst: Dict[str,Any]) -> int:
             cnt += 1
     return cnt
 
-
 # --- Public computations ---
 
 def compute_presence_and_counts(lineup: Dict[str,Any]) -> Tuple[Dict[str,int], Dict[str,int]]:
@@ -227,5 +226,23 @@ def classify_bucket(flags: Dict[str,int]) -> str:
 
 # --- Top-level convenience ---
 
-
+def analyze_lineup(lineup: Dict[str,Any]) -> Dict[str, Dict[str,float] | str]:
+    """
+    Compute presence/multiplicity maps AND the bucket for a single lineup.
+    Return:
+      {
+        "presence": {stack: 0/1, ...},
+        "multiplicity": {stack: int, ...},
+        "bucket": {"bucket": 1 for chosen bucket},
+        "bucket_label": "QB+WR" (string)
+      }
+    """
+    flags, counts = compute_presence_and_counts(lineup)
+    bucket = classify_bucket(flags)
+    bucket_onehot = {bucket: 1.0}
+    return {
+        "presence": flags,
+        "multiplicity": counts,
+        "bucket": bucket_onehot,
+        "bucket_label": bucket,
     }
