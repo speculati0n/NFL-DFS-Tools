@@ -21,11 +21,11 @@ def test_analyze_lineup_identifies_stacks_and_counts():
     result = analyze_lineup(lineup, player_dict)
 
     assert result["presence"]["QB+WR"] == 1
-    assert result["presence"]["QB+WR+OppWR"] == 1
+    assert result["presence"]["QB+WR+WR+OppWR"] == 1
     assert result["presence"]["RB+WR same-team"] == 1
     assert result["counts"]["QB+WR"] == 2
     assert result["counts"]["QB+WR+OppWR"] == 2
-    assert result["bucket"] == "QB+WR+OppWR"
+    assert result["bucket"] == "QB+WR+WR+OppWR"
 
 
 def test_analyze_lineup_no_stack_bucket():
@@ -39,4 +39,6 @@ def test_analyze_lineup_no_stack_bucket():
 
     result = analyze_lineup(lineup, player_dict)
 
+    assert result["presence"]["No Stack"] == 1
+    assert result["counts"]["No Stack"] == 1
     assert result["bucket"] == "No Stack"

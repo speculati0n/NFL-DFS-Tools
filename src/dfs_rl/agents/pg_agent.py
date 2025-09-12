@@ -22,9 +22,6 @@ class PGAgent:
         self.n = n_players
         self.policy = TinyPolicy(n_players)
         self.opt = optim.Adam(self.policy.parameters(), lr=lr)
-        self._states = []
-        self._actions = []
-        self._rewards = []
 
     def sample(self, mask):
         x = torch.zeros(1, self.n)
@@ -35,21 +32,6 @@ class PGAgent:
         a = dist.sample()
         logp = dist.log_prob(a)
         return int(a.item()), logp
-
-    # Interface expected by arena._run_agent
-    def act(self, obs, info):
-        action, logp = self.sample(info.get("action_mask"))
-        self._states.append(obs)
-        self._actions.append((None, logp))
-        return action
-
-    def train_step(self, obs, reward, done, info):
-        self._rewards.append(reward)
-        if done:
-            self.update(self._states, self._actions, self._rewards)
-            self._states.clear()
-            self._actions.clear()
-            self._rewards.clear()
 
     def update(self, states, actions, rewards):
         returns = []
