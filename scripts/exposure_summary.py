@@ -7,7 +7,7 @@ from collections import Counter
 
 from dfs_rl.utils.data import load_week_folder
 from dfs_rl.arena import run_tournament
-from dfs.stacks import compute_presence_and_counts, compute_features
+from stack_metrics import analyze_lineup, compute_presence_and_counts, compute_features, classify_bucket
 
 
 def main() -> None:

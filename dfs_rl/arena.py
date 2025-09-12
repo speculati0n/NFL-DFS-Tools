@@ -9,7 +9,7 @@ from dfs_rl.agents.pg_agent import PGAgent
 from dfs_rl.utils.lineups import lineup_key, jaccard_similarity, SLOTS
 
 # Use the same feature/count utilities as the optimizer/analysis
-from src.dfs.stacks import compute_features, compute_presence_and_counts, classify_bucket
+from stack_metrics import compute_features, compute_presence_and_counts, classify_bucket
 
 POINTS_COLS = [
     "projections_actpts",

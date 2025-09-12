@@ -1,7 +1,7 @@
 from typing import Dict, Any
 
 from dfs.constraints import DEFAULT_SALARY_CAP
-from dfs.stacks import compute_presence_and_counts, compute_features
+from stack_metrics import analyze_lineup, compute_presence_and_counts, compute_features, classify_bucket
 
 STACK_KEYS = ["stack_bucket", "double_te", "flex_pos", "dst_conflicts"]
 
