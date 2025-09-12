@@ -26,3 +26,17 @@ def score_lineup(players: List[Dict], col="projections_proj") -> float:
 
 def to_df(players: List[Dict]) -> pd.DataFrame:
     return pd.DataFrame(players)
+
+
+def lineup_key(lineup_dict: Dict) -> tuple:
+    """Canonical key independent of slot order for non-DST skill players.
+
+    // 2023+2025 stack tuning
+    """
+    ids = []
+    for s in ["QB","RB1","RB2","WR1","WR2","WR3","TE","FLEX","DST"]:
+        pid = lineup_dict.get(f"{s}_id") or lineup_dict.get(s)
+        if pid is not None:
+            ids.append(str(pid))
+    ids.sort()
+    return tuple(ids)

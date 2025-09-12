@@ -35,10 +35,15 @@ def _find_points_col(df: pd.DataFrame) -> Optional[str]:
             return lower_map[name.lower()]
     return None
 
-def backtest_week(week: str, n_lineups_per_agent: int = 150) -> Dict[str, pd.DataFrame]:
+def backtest_week(week: str, n_lineups_per_agent: int = 150, min_salary_pct: float | None = None) -> Dict[str, pd.DataFrame]:
     bundle = load_week_folder(week)
     pool = bundle["projections"].copy()
-    gen = run_tournament(pool, n_lineups_per_agent=n_lineups_per_agent, train_pg=False)
+    gen = run_tournament(
+        pool,
+        n_lineups_per_agent=n_lineups_per_agent,
+        train_pg=False,
+        min_salary_pct=min_salary_pct,
+    )
 
     # If we have a contest file with lineup points, compare
     scored = None

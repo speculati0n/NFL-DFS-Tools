@@ -67,3 +67,28 @@ def compute_partial_reward(lineup_row_like: Dict[str, Any], w: Dict[str, float])
         return compute_reward(lineup_row_like, w)
     except Exception:
         return 0.0
+
+
+def compute_reward_from_weights(row: Dict[str, Any], rw: Dict[str, float]) -> float:
+    """Compute reward using explicit stack weights from config.
+
+    // 2023+2025 stack tuning
+    """
+    base = float(row.get("projections_proj", 0.0))
+    flags, counts = compute_presence_and_counts(row)
+    feats = compute_features(row)
+    total = base
+    for key, w in rw.items():
+        if key in counts:
+            total += w * counts.get(key, 0)
+        elif key == "Double TE":
+            total += w * int(feats.get("feat_double_te", 0))
+        elif key == "Any vs DST (per player)":
+            total += w * int(feats.get("feat_any_vs_dst", 0))
+        elif key == "FLEX=WR":
+            total += w * int(feats.get("flex_is_wr", 0))
+        elif key == "FLEX=RB":
+            total += w * int(feats.get("flex_is_rb", 0))
+        elif key == "FLEX=TE":
+            total += w * int(feats.get("flex_is_te", 0))
+    return total
