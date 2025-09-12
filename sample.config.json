@@ -1,131 +1,201 @@
 {
-  "projection_path": "projections.csv",
-  "player_path": "player_ids.csv",
-  "contest_structure_path": "contest_structure.csv",
-  "use_double_te": false,
-  "global_team_limit": 4,
-  "projection_minimum": 5,
-  "randomness": 25,
-  "min_lineup_salary": 49200,
-  "MIN_SALARY_PCT": 0.99,
-  "max_pct_off_optimal": 0.25,
-  "num_players_vs_def": 0,
-  "pct_field_using_stacks": 0.65,
-  "pct_field_double_stacks": 0.4,
-  "default_qb_var": 0.4,
-  "default_skillpos_var": 0.5,
-  "default_def_var": 0.5,
-  "allow_qb_vs_dst": false,
-  "at_most": { "1": [] },
-  "at_least": { "1": [] },
-  "stack_rules": {
-    "pair": [
-      { "key": "QB", "positions": ["WR","TE"], "count": 2, "type": "same-team", "exclude_teams": [] },
-      { "key": "QB", "positions": ["WR","TE","RB"], "count": 1, "type": "opp-team", "exclude_teams": [] }
-    ],
-    "limit": [
-      { "positions": ["RB"], "type": "same-team", "count": 1, "exclude_teams": [] },
-      { "positions": ["WR","TE"], "type": "same-team", "count": "1", "exclude_teams": [], "unless_positions": ["QB"], "unless_type": "same-game" }
-    ]
-  },
-  "matchup_limits": {},
-  "matchup_at_least": {},
-  "team_limits": {},
-  "custom_correlations": {},
-
-  "rl": {
-    "epsilon": 0.10,
-    "softmax_temperature": 0.85,
-    "diversity_penalty_weight": 4.0,
-    "min_jaccard_diversity": 0.20,
-    "max_resample_attempts": 25,
-    "max_player_exposure": 0.45,
-    "dedupe_on_collect": true,
-    "reward": {
-      "base_metric": "actual_points",
-      "normalize_by_field": false,
-      "salary_floor": 49500,
-      "salary_floor_penalty_per_100": -0.25,
-      "stack_bonus": {
-        "QB+WR": 2.0,
-        "QB+WR+OppWR": 3.0,
-        "QB+TE": 1.25,
-        "WR vs OppWR": 0.5
-      },
-      "feature_penalties": {
-        "any_vs_dst": -1.0,
-        "double_te": -0.5
-      },
-      "flex_bonus": { "WR": 0.25, "RB": 0.10, "TE": 0.0 },
-      "duplication_penalty": { "enabled": false, "field_pct": 0.10, "penalty": -1.0 },
-      "target_distribution": {
-        "enabled": false,
-        "threshold": "top_5%",
-        "presence": {
-          "QB+WR": 0.60,
-          "QB+WR+OppWR": 0.30,
-          "QB+TE": 0.25
-        },
-        "lambda": 5.0,
-        "window": 150
-      }
-    }
-  },
-
-  "profiles": {
-    "top10_consistency": {
-      "presence_targets_pct": {
-        "QB+WR": 0.65,
-        "QB+WR+TE": 0.18,
-        "QB+WR+OppWR": 0.18,
-        "QB+TE": 0.12,
-        "WR vs OppWR": 0.30,
-        "TE vs OppWR": 0.28,
-        "WR vs OppTE": 0.28,
-        "No Stack": 0.05,
-        "RB+WR same-team": 0.10
-      },
-      "multiplicity_targets_mean": {
-        "QB+WR": 1.00,
-        "QB+WR+OppWR": 0.20,
-        "WR vs OppWR": 0.40,
-        "TE vs OppWR": 0.28,
-        "WR vs OppTE": 0.28,
-        "RB+WR same-team": 0.15
-      },
-      "bucket_mix_pct": {
-        "QB+WR": 0.28,
-        "QB+WR+OppWR": 0.15,
-        "QB+WR+TE": 0.15,
-        "QB+TE": 0.08,
-        "No Stack": 0.05
-      }
+    "projection_path": "projections.csv",
+    "player_path": "player_ids.csv",
+    "contest_structure_path": "contest_structure.csv",
+    "use_double_te": false,
+    "global_team_limit": 4,
+    "projection_minimum": 5,
+    "randomness": 25,
+    "min_lineup_salary": 49200,
+    "MIN_SALARY_PCT": 0.99,
+    "max_pct_off_optimal": 0.25,
+    "num_players_vs_def": 0,
+    "pct_field_using_stacks": 0.65,
+    "pct_field_double_stacks": 0.4,
+    "default_qb_var": 0.4,
+    "default_skillpos_var": 0.5,
+    "default_def_var": 0.5,
+    "allow_qb_vs_dst": false,
+    "at_most": {
+        "1": []
     },
-    "top1_ceiling": {
-      "presence_targets_pct": {
-        "QB+WR": 0.20,
-        "QB+TE": 0.30,
-        "QB+WR+TE": 0.20,
-        "QB+TE+OppWR": 0.15,
-        "QB+WR+WR+OppWR": 0.10,
-        "No Stack": 0.03,
-        "RB+WR same-team": 0.08
-      },
-      "multiplicity_targets_mean": {
-        "QB+WR": 0.95,
-        "QB+WR+OppWR": 0.22,
-        "WR vs OppWR": 0.40,
-        "TE vs OppWR": 0.28,
-        "WR vs OppTE": 0.25,
-        "RB+WR same-team": 0.10
-      },
-      "bucket_mix_pct": {
-        "QB+WR": 0.15,
-        "QB+WR+TE": 0.20,
-        "QB+TE": 0.18,
-        "QB+WR+WR+OppWR": 0.12,
-        "No Stack": 0.03
-      }
+    "at_least": {
+        "1": []
+    },
+    "stack_rules": {
+        "pair": [
+            {
+                "key": "QB",
+                "positions": [
+                    "WR",
+                    "TE"
+                ],
+                "count": 2,
+                "type": "same-team",
+                "exclude_teams": []
+            },
+            {
+                "key": "QB",
+                "positions": [
+                    "WR",
+                    "TE",
+                    "RB"
+                ],
+                "count": 1,
+                "type": "opp-team",
+                "exclude_teams": []
+            }
+        ],
+        "limit": [
+            {
+                "positions": [
+                    "RB"
+                ],
+                "type": "same-team",
+                "count": 1,
+                "exclude_teams": []
+            },
+            {
+                "positions": [
+                    "WR",
+                    "TE"
+                ],
+                "type": "same-team",
+                "count": "1",
+                "exclude_teams": [],
+                "unless_positions": [
+                    "QB"
+                ],
+                "unless_type": "same-game"
+            }
+        ]
+    },
+    "matchup_limits": {},
+    "matchup_at_least": {},
+    "team_limits": {},
+    "custom_correlations": {},
+    "reward_weights": {
+        "QB+WR": 4.0,
+        "QB+TE": 2.0,
+        "RB+WR same-team": 1.0,
+        "QB+OppRB": 1.5,
+        "RB vs OppWR": 1.5,
+        "QB+WR+OppWR": -0.5,
+        "WR vs OppWR": -0.4,
+        "FLEX=WR": 1.0,
+        "FLEX=RB": 0.2,
+        "FLEX=TE": -2.0,
+        "Double TE": -3.0,
+        "Any vs DST (per player)": -1.2
+    },
+    "min_salary_ratio": 0.99,
+    "max_double_stack_rate": 0.35,
+    "max_opp_wr_bringback_rate": 0.35,
+    "target_flex_mix": {
+        "WR": 0.62,
+        "RB": 0.33,
+        "TE": 0.05
+    },
+    "rl": {
+        "epsilon": 0.1,
+        "softmax_temperature": 0.85,
+        "diversity_penalty_weight": 4.0,
+        "min_jaccard_diversity": 0.2,
+        "max_resample_attempts": 25,
+        "max_player_exposure": 0.45,
+        "dedupe_on_collect": true,
+        "reward": {
+            "base_metric": "actual_points",
+            "normalize_by_field": false,
+            "salary_floor": 49500,
+            "salary_floor_penalty_per_100": -0.25,
+            "stack_bonus": {
+                "QB+WR": 2.0,
+                "QB+WR+OppWR": 3.0,
+                "QB+TE": 1.25,
+                "WR vs OppWR": 0.5
+            },
+            "feature_penalties": {
+                "any_vs_dst": -1.0,
+                "double_te": -0.5
+            },
+            "flex_bonus": {
+                "WR": 0.25,
+                "RB": 0.1,
+                "TE": 0.0
+            },
+            "duplication_penalty": {
+                "enabled": false,
+                "field_pct": 0.1,
+                "penalty": -1.0
+            },
+            "target_distribution": {
+                "enabled": false,
+                "threshold": "top_5%",
+                "presence": {
+                    "QB+WR": 0.6,
+                    "QB+WR+OppWR": 0.3,
+                    "QB+TE": 0.25
+                },
+                "lambda": 5.0,
+                "window": 150
+            }
+        }
+    },
+    "profiles": {
+        "top10_consistency": {
+            "presence_targets_pct": {
+                "QB+WR": 0.65,
+                "QB+WR+TE": 0.18,
+                "QB+WR+OppWR": 0.18,
+                "QB+TE": 0.12,
+                "WR vs OppWR": 0.3,
+                "TE vs OppWR": 0.28,
+                "WR vs OppTE": 0.28,
+                "No Stack": 0.05,
+                "RB+WR same-team": 0.1
+            },
+            "multiplicity_targets_mean": {
+                "QB+WR": 1.0,
+                "QB+WR+OppWR": 0.2,
+                "WR vs OppWR": 0.4,
+                "TE vs OppWR": 0.28,
+                "WR vs OppTE": 0.28,
+                "RB+WR same-team": 0.15
+            },
+            "bucket_mix_pct": {
+                "QB+WR": 0.28,
+                "QB+WR+OppWR": 0.15,
+                "QB+WR+TE": 0.15,
+                "QB+TE": 0.08,
+                "No Stack": 0.05
+            }
+        },
+        "top1_ceiling": {
+            "presence_targets_pct": {
+                "QB+WR": 0.2,
+                "QB+TE": 0.3,
+                "QB+WR+TE": 0.2,
+                "QB+TE+OppWR": 0.15,
+                "QB+WR+WR+OppWR": 0.1,
+                "No Stack": 0.03,
+                "RB+WR same-team": 0.08
+            },
+            "multiplicity_targets_mean": {
+                "QB+WR": 0.95,
+                "QB+WR+OppWR": 0.22,
+                "WR vs OppWR": 0.4,
+                "TE vs OppWR": 0.28,
+                "WR vs OppTE": 0.25,
+                "RB+WR same-team": 0.1
+            },
+            "bucket_mix_pct": {
+                "QB+WR": 0.15,
+                "QB+WR+TE": 0.2,
+                "QB+TE": 0.18,
+                "QB+WR+WR+OppWR": 0.12,
+                "No Stack": 0.03
+            }
+        }
     }
-  }
 }

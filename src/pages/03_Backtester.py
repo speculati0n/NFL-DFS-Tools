@@ -6,6 +6,8 @@ from dfs_rl.utils.historical_outcomes import attach_historical_outcomes
 import os
 
 from dfs.constraints import DEFAULT_MIN_SPEND_PCT
+from utils import get_config_path
+import json
 
 st.set_page_config(page_title="Backtester", layout="wide")
 
@@ -19,11 +21,17 @@ label_to_key = {lab: key for lab, key in weeks}
 choice = st.selectbox("Select week:", list(label_to_key.keys()))
 week_key = label_to_key[choice]
 n = st.slider("Lineups per agent", 20, 300, 150, 10)
+cfg_path = get_config_path()
+with open(cfg_path) as f:
+    cfg = json.load(f)
 min_salary_pct = st.sidebar.slider(
-    "Min salary spend (% of cap)", 0.90, 1.00, float(os.getenv("MIN_SALARY_PCT", DEFAULT_MIN_SPEND_PCT)), 0.005
+    "Min salary spend (% of cap)", 0.90, 1.00, float(cfg.get("min_salary_ratio", DEFAULT_MIN_SPEND_PCT)), 0.005
 )
 
 if st.button("Run Backtest"):
+    cfg["min_salary_ratio"] = float(min_salary_pct)
+    with open(cfg_path, "w") as f:
+        json.dump(cfg, f, indent=2)
     with st.spinner("Backtesting..."):
         out = backtest_week(week_key, n_lineups_per_agent=n, min_salary_pct=min_salary_pct)
     st.success("Done")
@@ -64,6 +72,10 @@ if st.button("Run Backtest"):
         "TE",
         "FLEX",
         "DST",
+        "stack_bucket",
+        "flex_pos",
+        "bringback_type",
+        "any_vs_dst_count",
         "reward",
     ]
     gen = out["generated"][ [c for c in cols_to_show if c in out["generated"].columns] ]
