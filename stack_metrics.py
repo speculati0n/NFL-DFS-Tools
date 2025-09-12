@@ -120,70 +120,6 @@ def _any_vs_dst(offense: List[Dict[str,Any]], dst: Dict[str,Any]) -> int:
             cnt += 1
     return cnt
 
-# --- Compatibility helpers ---
-
-def _lineup_to_dict(lineup: List[Any], player_dict: Dict[Any, Dict[str,Any]]) -> Dict[str,Any]:
-    """Convert a list-style lineup into the slot-based dict format.
-
-    Each element of ``lineup`` is a key into ``player_dict`` which provides
-    ``Position``, ``Team``, ``Opponent`` and optionally ``Name``.
-    """
-
-    res: Dict[str, Any] = {}
-    rb = wr = 0
-    flex_used = False
-    for key in lineup:
-        info = player_dict[key]
-        pos = (info.get("Position") or "").upper()
-        team = info.get("Team")
-        opp = info.get("Opponent")
-        name = info.get("Name") or str(key)
-
-        if pos == "QB":
-            slot = "QB"
-        elif pos == "DST":
-            slot = "DST"
-        elif pos == "RB":
-            rb += 1
-            if rb == 1:
-                slot = "RB1"
-            elif rb == 2:
-                slot = "RB2"
-            elif not flex_used:
-                slot = "FLEX"
-                flex_used = True
-            else:
-                slot = f"RB{rb}"
-        elif pos == "WR":
-            wr += 1
-            if wr <= 3:
-                slot = f"WR{wr}"
-            elif not flex_used:
-                slot = "FLEX"
-                flex_used = True
-            else:
-                slot = f"WR{wr}"
-        elif pos == "TE":
-            if "TE_name" not in res:
-                slot = "TE"
-            elif not flex_used:
-                slot = "FLEX"
-                flex_used = True
-            else:
-                slot = "TE2"
-        else:
-            if not flex_used:
-                slot = "FLEX"
-                flex_used = True
-            else:
-                slot = f"P{len(res)}"
-
-        res[f"{slot}_name"] = name
-        res[f"{slot}_pos"] = pos
-        res[f"{slot}_team"] = team
-        res[f"{slot}_opp"] = opp
-
-    return res
 
 # --- Public computations ---
 
@@ -291,32 +227,5 @@ def classify_bucket(flags: Dict[str,int]) -> str:
 
 # --- Top-level convenience ---
 
-def analyze_lineup(
-    lineup: Dict[str, Any] | List[Any],
-    player_dict: Dict[Any, Dict[str, Any]] | None = None,
-) -> Dict[str, Any]:
-    """Analyze a single lineup.
 
-    ``lineup`` may be a dict with slot fields (QB_team, WR1_team, ...)
-    or a list of player keys paired with ``player_dict``. The return value
-    is backward compatible with older helpers while also exposing the new
-    unified structures.
-    """
-
-    if not isinstance(lineup, dict):
-        if player_dict is None:
-            raise ValueError("player_dict required when lineup is a list")
-        lineup = _lineup_to_dict(list(lineup), player_dict)
-
-    flags, counts = compute_presence_and_counts(lineup)
-    bucket = classify_bucket(flags)
-    bucket_onehot = {bucket: 1.0}
-
-    return {
-        "presence": flags,
-        "counts": counts,            # legacy name
-        "multiplicity": counts,
-        "bucket": bucket,            # legacy name (label)
-        "bucket_label": bucket,
-        "bucket_onehot": bucket_onehot,
     }

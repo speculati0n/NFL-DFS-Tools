@@ -21,26 +21,7 @@ from dfs.constraints import (
     DEFAULT_MIN_SPEND_PCT,
 )
 from stack_metrics import analyze_lineup, compute_presence_and_counts, compute_features, classify_bucket
-from dfs.rl_reward import compute_reward as compute_reward_simple, compute_partial_reward
-from dfs_rl.utils.lineups import lineup_key, jaccard_similarity
 
-# Diversity-aware reward used by arena/run_tournament
-def compute_reward(
-    lineup: dict,
-    base_points: float,
-    stack_bonus: float,
-    cfg: dict,
-    accepted_keys_snapshot: Iterable[tuple],
-) -> float:
-    reward = base_points + stack_bonus
-    lam = cfg.get("diversity_penalty_weight", 0.0)
-    if lam > 0 and accepted_keys_snapshot:
-        ids = list(lineup_key(lineup))
-        comp = list(accepted_keys_snapshot)[-200:]
-        if comp:
-            sim = max(jaccard_similarity(ids, list(k)) for k in comp)
-            reward -= lam * sim
-    return reward
 
 # explicit slot order
 SLOTS = ["QB", "RB1", "RB2", "WR1", "WR2", "WR3", "TE", "FLEX", "DST"]
