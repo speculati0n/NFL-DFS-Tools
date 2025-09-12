@@ -7,6 +7,7 @@ from dfs_rl.envs.dk_nfl_env import DKNFLEnv, compute_reward
 from dfs_rl.agents.random_agent import RandomAgent
 from dfs_rl.agents.pg_agent import PGAgent
 from dfs_rl.utils.lineups import lineup_key, jaccard_similarity, SLOTS
+from dfs.constraints import DEFAULT_SALARY_CAP
 
 # Use the same feature/count utilities as the optimizer/analysis
 from stack_metrics import compute_features, compute_presence_and_counts, classify_bucket
@@ -67,7 +68,7 @@ def _stack_bonus_from_weights(lineup: dict, weights: dict) -> float:
             total += float(w) * int(feats.get("flex_is_te", 0))
     return float(total)
 
-def _run_agent(env: DKNFLEnv, agent, train: bool) -> Tuple[List[int], int, float]:
+def _run_agent(env: DKNFLEnv, agent, train: bool) -> Tuple[List[int], int, dict]:
     """Rollout one lineup and optionally train the agent."""
     obs, info = env.reset()
     done = False
@@ -78,15 +79,18 @@ def _run_agent(env: DKNFLEnv, agent, train: bool) -> Tuple[List[int], int, float
         if train and hasattr(agent, "train_step"):
             agent.train_step(obs, reward, done, info)
         steps += 1
-    return env.state["idxs"], steps, float(info.get("sum_proj", 0.0))
+    idxs = info.get("lineup_indices", [])
+    return idxs, steps, info
 
 def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150,
-                   train_pg: bool = True, cfg: Optional[dict] = None) -> pd.DataFrame:
+                   train_pg: bool = True, cfg: Optional[dict] = None,
+                   min_salary_pct: float | None = None) -> pd.DataFrame:
     cfg = cfg or {}
-    env = DKNFLEnv(pool)
+    env = DKNFLEnv(pool, min_salary_pct=min_salary_pct)
+    salaries = np.array([p.salary for p in env.players], dtype=float)
     agents = {
-        "random": RandomAgent(seed=1),
-        "pg": PGAgent(n_players=len(pool), seed=2, cfg=cfg),
+        "random": RandomAgent(salaries, seed=1),
+        "pg": PGAgent(n_players=len(pool), seed=2),
     }
 
     rl_cfg = cfg.get("rl", {})
@@ -118,17 +122,22 @@ def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150,
             attempts, accepted, key = 0, False, tuple()
             lineup_dict = {}
             while attempts < rl_cfg.get("max_resample_attempts", 25) and not accepted:
-                idxs, steps, base_points = _run_agent(env, agent, train=(train_pg and name == "pg"))
+                idxs, steps, info = _run_agent(env, agent, train=(train_pg and name == "pg"))
                 lineup_dict = _build_lineup(pool, idxs)
                 accepted, key = accept_lineup_if_unique(lineup_dict)
+                if info.get("salary", 0) < env.min_salary_pct * DEFAULT_SALARY_CAP:
+                    accepted = False
                 attempts += 1
+            if not accepted:
+                continue
             # stack-aware reward: add weighted bonus/penalties
             stack_bonus = _stack_bonus_from_weights(lineup_dict, rw)
+            base_points = float(info.get("projections_proj", 0.0))
             reward = compute_reward(lineup_dict, base_points, stack_bonus, rl_cfg, seen_keys_global)
             feats = compute_features(lineup_dict)
             flags, _ = compute_presence_and_counts(lineup_dict)
             bucket = classify_bucket(flags)
-            rows.append({
+            row_data = {
                 "agent": name,
                 "reward": reward,
                 "lineup_key": "|".join(key),
@@ -136,8 +145,13 @@ def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150,
                 "double_te": feats.get("feat_double_te"),
                 "flex_pos": feats.get("flex_pos"),
                 "dst_conflicts": feats.get("feat_any_vs_dst"),
-                "is_duplicate": 0 if accepted else 1
-            })
+                "is_duplicate": 0 if accepted else 1,
+                "projections_proj": info.get("projections_proj", 0.0),
+                "projections_actpts": info.get("projections_actpts", 0.0),
+            }
+            for slot in SLOTS:
+                row_data[slot] = lineup_dict.get(f"{slot}_name")
+            rows.append(row_data)
 
     df = pd.DataFrame(rows)
     dupes = int(df.duplicated("lineup_key", keep=False).sum())
