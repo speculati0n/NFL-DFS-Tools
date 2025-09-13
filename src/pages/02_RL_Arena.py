@@ -72,8 +72,11 @@ if st.button("Run Arena"):
             bundle["projections"],
             n_lineups_per_agent=n,
             train_pg=True,
-            min_salary_pct=min_salary_pct,
             seed=int(seed),
+            cfg=cfg,
+            save_to_simulator=True,
+            sim_out_dir="uploads2/saved_lineups",
+            tag_source="agent",
         )
         st.success("Done")
     if bundle["contest_files"]:
