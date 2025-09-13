@@ -8,7 +8,7 @@
     "randomness": 25,
     "min_lineup_salary": 49300,
     "MIN_SALARY_PCT": 0.986,
-    "max_pct_off_optimal": 0.0618,
+    "max_pct_off_optimal": 0.1,
     "num_players_vs_def": 0,
     "pct_field_using_stacks": 0.65,
     "pct_field_double_stacks": 0.4,
