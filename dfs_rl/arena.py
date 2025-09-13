@@ -3,6 +3,7 @@
 from __future__ import annotations
 from typing import List, Tuple, Optional, Dict, Any
 from collections import Counter
+import inspect
 import numpy as np
 import pandas as pd
 import json
@@ -179,10 +180,6 @@ def _solve_optimal_projection(pool: pd.DataFrame, salary_cap: int = 50000) -> fl
         # Each slot filled exactly once
         for s in slots:
             prob += plp.lpSum(x[(i, s)] for i in range(n)) == 1, f"slot_{s}_filled"
-
-        # Each player at most one slot
-        for i in range(n):
-            prob += plp.lpSum(x[(i, s)] for s in slots) <= 1, f"player_{i}_once"
 
         # Slot eligibility
         for i in range(n):
@@ -388,18 +385,22 @@ def run_tournament(
         collected = 0
         attempts = 0
 
+
         while collected < n_lineups_per_agent and attempts < n_lineups_per_agent * max_resample:
             attempts += 1
             obs, info = env.reset()
+            mask = info.get("action_mask") if isinstance(info, dict) else None
+            if mask is None:
+                mask = obs
             done = False
             while not done:
-                if uses_info:
-                    action = agent.act(obs, info)
-                else:
-                    action = agent.act(obs)
-                obs, reward, done, truncated, info = env.step(action)
 
-            idxs = info.get("idxs") or getattr(env, "state", {}).get("idxs")
+                obs, reward, done, truncated, info = env.step(action)
+                next_mask = info.get("action_mask") if isinstance(info, dict) else None
+                if next_mask is not None:
+                    mask = next_mask
+
+
             if not idxs:
                 continue
             lineup_dict = _build_lineup(pool, idxs)
