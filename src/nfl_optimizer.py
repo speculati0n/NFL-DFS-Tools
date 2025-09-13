@@ -32,6 +32,7 @@ from utils import get_data_path, get_config_path
 from selection_exposures import select_lineups, report_lineup_exposures
 from stack_metrics import analyze_lineup
 from player_ids_flex import load_player_ids_flex, dst_id_by_team, _norm_name
+from risk_model import build_player_risk, draw_optimizer_noise_points
 
 
 # --- begin Player dataclass (optimizer) ---
@@ -438,7 +439,7 @@ class NFL_Optimizer:
         # Read projections into a dictionary
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
-            for row in reader:
+            for idx, row in enumerate(reader):
                 player_name = _norm_name(row["name"]).replace("-", "#")
                 try:
                     fpts = float(row["projections_proj"])
@@ -474,30 +475,47 @@ class NFL_Optimizer:
                     opp = "JAC"
 
                 matchup = f"{team} @ {opp}" if opp else ""
-                if "fantasyyear_consistency" in row:
-                    if row["fantasyyear_consistency"] == "" or float(row["fantasyyear_consistency"]) == 0:
-                        if position == "QB":
-                            stddev = fpts * self.default_qb_var
-                        elif position == "DST":
-                            stddev = fpts * self.default_def_var
-                        else:
-                            stddev = fpts * self.default_skillpos_var
-                    else:
-                        stddev = float(row["fantasyyear_consistency"])
-                else:
-                    if position == "QB":
-                        stddev = fpts * self.default_qb_var
-                    elif position == "DST":
-                        stddev = fpts * self.default_def_var
-                    else:
-                        stddev = fpts * self.default_skillpos_var
-                if "ceiling" in row:
-                    if row["ceiling"] == "" or float(row["ceiling"]) == 0:
-                        ceil = fpts + stddev
-                    else:
-                        ceil = float(row["ceiling"])
-                else:
-                    ceil = fpts + stddev
+                risk = build_player_risk(
+                    mean_fpts=fpts,
+                    position=position,
+                    default_qb_var=self.default_qb_var,
+                    default_skill_var=self.default_skillpos_var,
+                    default_def_var=self.default_def_var,
+                    ceiling=(row.get("projections_ceiling") or row.get("ceiling")),
+                    floor=(row.get("projections_floor") or row.get("floor")),
+                    consistency_raw=row.get("fantasyyear_consistency"),
+                    upside_raw=row.get("fantasyyear_upside"),
+                    duds_raw=row.get("fantasyyear_duds"),
+                    beta_consistency=1.0,
+                )
+                stddev = risk["sigma_eff"]
+                ceil = float(
+                    row.get("projections_ceiling")
+                    or row.get("ceiling")
+                    or (fpts + stddev)
+                )
+                if os.environ.get("RISK_DEBUG", "0") == "1" and idx < 3:
+                    print(
+                        "RISK:",
+                        row.get("name"),
+                        position,
+                        "mean=",
+                        fpts,
+                        "σ_base=",
+                        round(risk["sigma_base"], 2),
+                        "σ_eff=",
+                        round(risk["sigma_eff"], 2),
+                        "r+=",
+                        round(risk["r_plus"], 2),
+                        "r-=",
+                        round(risk["r_minus"], 2),
+                        "cons=",
+                        row.get("fantasyyear_consistency"),
+                        "up=",
+                        row.get("fantasyyear_upside"),
+                        "dn=",
+                        row.get("fantasyyear_duds"),
+                    )
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
                 if own == 0:
                     own = 0.1
@@ -516,6 +534,9 @@ class NFL_Optimizer:
                     "Ownership": own,
                     "Ceiling": ceil,
                     "StdDev": stddev,
+                    "SigmaBase": risk["sigma_base"],
+                    "RPlus": risk["r_plus"],
+                    "RMinus": risk["r_minus"],
                 }
 
                 if team not in self.team_list:
@@ -549,15 +570,18 @@ class NFL_Optimizer:
 
         # set the objective - maximize fpts & set randomness amount from config
         if self.randomness_amount != 0:
+            rng = np.random.default_rng()
             self.problem += (
                 plp.lpSum(
-                    np.random.normal(
-                        self.player_dict[(player, pos_str, team)]["Fpts"],
-                        (
-                            self.player_dict[(player, pos_str, team)]["StdDev"]
-                            * self.randomness_amount
-                            / 100
-                        ),
+                    (
+                        self.player_dict[(player, pos_str, team)]["Fpts"]
+                        + draw_optimizer_noise_points(
+                            rng=rng,
+                            randomness_pct=self.randomness_amount,
+                            sigma_base=self.player_dict[(player, pos_str, team)]["SigmaBase"],
+                            r_plus=self.player_dict[(player, pos_str, team)]["RPlus"],
+                            r_minus=self.player_dict[(player, pos_str, team)]["RMinus"],
+                        )
                     )
                     * lp_variables[self.player_dict[(player, pos_str, team)]["ID"]]
                     for (player, pos_str, team) in self.player_dict
@@ -1217,15 +1241,18 @@ class NFL_Optimizer:
 
             # Set a new random fpts projection within their distribution
             if self.randomness_amount != 0:
+                rng = np.random.default_rng()
                 self.problem += (
                     plp.lpSum(
-                        np.random.normal(
-                            self.player_dict[(player, pos_str, team)]["Fpts"],
-                            (
-                                self.player_dict[(player, pos_str, team)]["StdDev"]
-                                * self.randomness_amount
-                                / 100
-                            ),
+                        (
+                            self.player_dict[(player, pos_str, team)]["Fpts"]
+                            + draw_optimizer_noise_points(
+                                rng=rng,
+                                randomness_pct=self.randomness_amount,
+                                sigma_base=self.player_dict[(player, pos_str, team)]["SigmaBase"],
+                                r_plus=self.player_dict[(player, pos_str, team)]["RPlus"],
+                                r_minus=self.player_dict[(player, pos_str, team)]["RMinus"],
+                            )
                         )
                         * lp_variables[self.player_dict[(player, pos_str, team)]["ID"]]
                         for (player, pos_str, team) in self.player_dict
