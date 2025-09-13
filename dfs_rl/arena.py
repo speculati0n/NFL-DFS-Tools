@@ -8,6 +8,7 @@ import pandas as pd
 import json
 import os
 
+
 # Optional exact ILP for "optimal projection" baseline; falls back to greedy if unavailable
 try:
     import pulp as plp
@@ -386,12 +387,16 @@ def run_tournament(
     for name, agent in agents.items():
         collected = 0
         attempts = 0
+
         while collected < n_lineups_per_agent and attempts < n_lineups_per_agent * max_resample:
             attempts += 1
             obs, info = env.reset()
             done = False
             while not done:
-                action = agent.act(obs, info)
+                if uses_info:
+                    action = agent.act(obs, info)
+                else:
+                    action = agent.act(obs)
                 obs, reward, done, truncated, info = env.step(action)
 
             idxs = info.get("idxs") or getattr(env, "state", {}).get("idxs")
