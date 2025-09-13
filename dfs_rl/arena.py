@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import json
 import os
-import inspect
+
 
 # Optional exact ILP for "optimal projection" baseline; falls back to greedy if unavailable
 try:
@@ -387,8 +387,7 @@ def run_tournament(
     for name, agent in agents.items():
         collected = 0
         attempts = 0
-        sig = inspect.signature(agent.act)
-        uses_info = len(sig.parameters) > 1
+
         while collected < n_lineups_per_agent and attempts < n_lineups_per_agent * max_resample:
             attempts += 1
             obs, info = env.reset()
