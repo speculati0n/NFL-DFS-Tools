@@ -78,6 +78,7 @@ import time
 import numpy as np
 import pulp as plp
 import multiprocessing as mp
+from risk_model import build_player_risk, build_covariance_from_corr, sample_skewed_outcomes
 import pandas as pd
 import statistics
 
@@ -85,7 +86,7 @@ import statistics
 import itertools
 import collections
 import re
-from scipy.stats import norm, kendalltau, multivariate_normal, gamma
+from scipy.stats import norm, kendalltau, gamma
 import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter
@@ -936,7 +937,7 @@ class NFL_GPP_Simulator:
         # Read projections into a dictionary
         with open(path, encoding="utf-8-sig") as file:
             reader = csv.DictReader(self.lower_first(file))
-            for row in reader:
+            for idx, row in enumerate(reader):
                 player_name = _norm_name(row["name"]).replace("-", "#")
                 try:
                     fpts = float(row["projections_proj"])
@@ -963,31 +964,50 @@ class NFL_GPP_Simulator:
                 if "QB" not in position and "DST" not in position:
                     position.append("FLEX")
                 pos = position[0]
-                if "fantasyyear_consistency" in row:
-                    if row["fantasyyear_consistency"] == "" or float(row["fantasyyear_consistency"]) == 0:
-                        if position == "QB":
-                            stddev = fpts * self.default_qb_var
-                        elif position == "DST":
-                            stddev = fpts * self.default_def_var
-                        else:
-                            stddev = fpts * self.default_skillpos_var
-                    else:
-                        stddev = float(row["fantasyyear_consistency"])
-                else:
-                    if position == "QB":
-                        stddev = fpts * self.default_qb_var
-                    elif position == "DST":
-                        stddev = fpts * self.default_def_var
-                    else:
-                        stddev = fpts * self.default_skillpos_var
-                # check if ceiling exists in row columns
-                if "ceiling" in row:
-                    if row["ceiling"] == "" or float(row["ceiling"]) == 0:
-                        ceil = fpts + stddev
-                    else:
-                        ceil = float(row["ceiling"])
-                else:
-                    ceil = fpts + stddev
+                risk = build_player_risk(
+                    mean_fpts=fpts,
+                    position=pos,
+                    default_qb_var=self.default_qb_var,
+                    default_skill_var=self.default_skillpos_var,
+                    default_def_var=self.default_def_var,
+                    ceiling=(row.get("projections_ceiling") or row.get("ceiling")),
+                    floor=(row.get("projections_floor") or row.get("floor")),
+                    consistency_raw=row.get("fantasyyear_consistency"),
+                    upside_raw=row.get("fantasyyear_upside"),
+                    duds_raw=row.get("fantasyyear_duds"),
+                    beta_consistency=1.0,
+                )
+                stddev = risk["sigma_eff"]
+                sigma_base = risk["sigma_base"]
+                r_plus = risk["r_plus"]
+                r_minus = risk["r_minus"]
+                ceil = float(
+                    row.get("projections_ceiling")
+                    or row.get("ceiling")
+                    or (fpts + stddev)
+                )
+                if os.environ.get("RISK_DEBUG", "0") == "1" and idx < 3:
+                    print(
+                        "RISK:",
+                        row.get("name"),
+                        pos,
+                        "mean=",
+                        fpts,
+                        "σ_base=",
+                        round(sigma_base, 2),
+                        "σ_eff=",
+                        round(stddev, 2),
+                        "r+=",
+                        round(r_plus, 2),
+                        "r-=",
+                        round(r_minus, 2),
+                        "cons=",
+                        row.get("fantasyyear_consistency"),
+                        "up=",
+                        row.get("fantasyyear_upside"),
+                        "dn=",
+                        row.get("fantasyyear_duds"),
+                    )
                 if row["salary"]:
                     sal = int(row["salary"].replace(",", ""))
                 if pos == "QB":
@@ -1091,6 +1111,9 @@ class NFL_GPP_Simulator:
                     "Matchup": matchup,
                     "Salary": int(row["salary"].replace(",", "")),
                     "StdDev": stddev,
+                    "SigmaBase": sigma_base,
+                    "RPlus": r_plus,
+                    "RMinus": r_minus,
                     "Ceiling": ceil,
                     "Ownership": own,
                     "Correlations": corr,
@@ -2499,57 +2522,46 @@ class NFL_GPP_Simulator:
 
         def build_covariance_matrix(players):
             N = len(players)
-            matrix = [[0 for _ in range(N)] for _ in range(N)]
             corr_matrix = [[0 for _ in range(N)] for _ in range(N)]
-
             for i in range(N):
                 for j in range(N):
                     if i == j:
-                        matrix[i][j] = (
-                            players[i]["StdDev"] ** 2
-                        )  # Variance on the diagonal
                         corr_matrix[i][j] = 1
                     else:
-                        matrix[i][j] = (
-                            get_corr_value(players[i], players[j])
-                            * players[i]["StdDev"]
-                            * players[j]["StdDev"]
-                        )
                         corr_matrix[i][j] = get_corr_value(players[i], players[j])
-            return matrix, corr_matrix
 
-        def ensure_positive_semidefinite(matrix):
-            eigs = np.linalg.eigvals(matrix)
-            if np.any(eigs < 0):
-                jitter = abs(min(eigs)) + 1e-6  # a small value
-                matrix += np.eye(len(matrix)) * jitter
-            return matrix
+            risks = [
+                {
+                    "sigma_base": p["SigmaBase"],
+                    "r_plus": p["RPlus"],
+                    "r_minus": p["RMinus"],
+                    "sigma_eff": p["StdDev"],
+                }
+                for p in players
+            ]
+            means = [p["Fpts"] for p in players]
+            corr = np.array(corr_matrix, dtype=float)
+            matrix = build_covariance_from_corr(means, risks, corr).tolist()
+            return matrix, corr_matrix
 
         game = team1 + team2
         covariance_matrix, corr_matrix = build_covariance_matrix(game)
-        # Ensure matrices are numpy arrays with at least 2 dimensions
-        covariance_matrix = np.array(covariance_matrix)
-        if covariance_matrix.ndim == 1:
-            covariance_matrix = covariance_matrix.reshape(1, 1)
-        corr_matrix = np.array(corr_matrix)
+        corr = np.array(corr_matrix, dtype=float)
 
-        # Given eigenvalues and eigenvectors from previous code
-        eigenvalues, eigenvectors = np.linalg.eigh(covariance_matrix)
-
-        # Set negative eigenvalues to zero
-        eigenvalues[eigenvalues < 0] = 0
-
-        # Reconstruct the matrix
-        covariance_matrix = eigenvectors.dot(np.diag(eigenvalues)).dot(eigenvectors.T)
-
-        try:
-            samples = multivariate_normal.rvs(
-                mean=[player["Fpts"] for player in game],
-                cov=covariance_matrix,
-                size=num_iterations,
-            )
-        except:
-            print(team1_id, team2_id, "bad matrix")
+        means = [player["Fpts"] for player in game]
+        risks = [
+            {
+                "sigma_base": player["SigmaBase"],
+                "r_plus": player["RPlus"],
+                "r_minus": player["RMinus"],
+                "sigma_eff": player["StdDev"],
+            }
+            for player in game
+        ]
+        rng = np.random.default_rng(getattr(self, "seed", None))
+        samples = np.vstack(
+            [sample_skewed_outcomes(rng, means, risks, corr) for _ in range(num_iterations)]
+        )
 
         player_samples = []
         for i, player in enumerate(game):
