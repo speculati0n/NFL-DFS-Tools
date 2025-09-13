@@ -9,6 +9,7 @@ import pandas as pd
 import json
 import os
 
+
 # Optional exact ILP for "optimal projection" baseline; falls back to greedy if unavailable
 try:
     import pulp as plp
@@ -180,27 +181,6 @@ def _solve_optimal_projection(pool: pd.DataFrame, salary_cap: int = 50000) -> fl
         for s in slots:
             prob += plp.lpSum(x[(i, s)] for i in range(n)) == 1, f"slot_{s}_filled"
 
-        # Each player at most one slot
-        for i in range(n):
-            prob += plp.lpSum(x[(i, s)] for s in slots) <= 1, f"player_{i}_once"
-
-        # Slot eligibility
-        for i in range(n):
-            pos = str(pool.iloc[i].get("pos") or "").upper()
-            elig = {
-                "QB": pos == "QB",
-                "RB1": pos == "RB",
-                "RB2": pos == "RB",
-                "WR1": pos == "WR",
-                "WR2": pos == "WR",
-                "WR3": pos == "WR",
-                "TE": pos == "TE",
-                "FLEX": pos in ("RB","WR","TE"),
-                "DST": pos == "DST",
-            }
-            for s in slots:
-                if not elig[s]:
-                    prob += x[(i, s)] == 0, f"elig_{i}_{s}"
 
         # Salary cap
         salaries = []
@@ -387,11 +367,7 @@ def run_tournament(
     for name, agent in agents.items():
         collected = 0
         attempts = 0
-        try:
-            sig = inspect.signature(agent.act)
-            uses_info = "info" in sig.parameters
-        except (TypeError, ValueError):
-            uses_info = False
+
 
         while collected < n_lineups_per_agent and attempts < n_lineups_per_agent * max_resample:
             attempts += 1
@@ -401,21 +377,12 @@ def run_tournament(
                 mask = obs
             done = False
             while not done:
-                if uses_info:
-                    action = agent.act(mask, info)
-                else:
-                    action = agent.act(mask)
+
                 obs, reward, done, truncated, info = env.step(action)
                 next_mask = info.get("action_mask") if isinstance(info, dict) else None
                 if next_mask is not None:
                     mask = next_mask
 
-            idxs = (
-                info.get("idxs")
-                or info.get("lineup_indices")
-                or getattr(env, "state", {}).get("idxs")
-                or getattr(env, "state", {}).get("lineup_indices")
-            )
             if not idxs:
                 continue
             lineup_dict = _build_lineup(pool, idxs)
