@@ -2,6 +2,15 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json
+import os
+import sys
+from pathlib import Path
+
+# Ensure the project root (with the updated dfs_rl package) is on the path
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from dfs_rl.utils.data import find_weeks, load_week_folder
 from dfs_rl.arena import run_tournament
 from backtesting.backtester import _find_points_col
@@ -9,9 +18,6 @@ from dfs_rl.utils.historical_outcomes import (
     attach_historical_outcomes,
     standardize_scoreboard_cols,
 )
-
-import os
-
 from dfs.constraints import DEFAULT_MIN_SPEND_PCT
 from utils import get_config_path
 
@@ -72,8 +78,11 @@ if st.button("Run Arena"):
             bundle["projections"],
             n_lineups_per_agent=n,
             train_pg=True,
-            min_salary_pct=min_salary_pct,
             seed=int(seed),
+            cfg=cfg,
+            save_to_simulator=True,
+            sim_out_dir="uploads2/saved_lineups",
+            tag_source="agent",
         )
         st.success("Done")
     if bundle["contest_files"]:
