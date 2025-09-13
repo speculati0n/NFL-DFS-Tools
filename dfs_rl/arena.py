@@ -181,23 +181,6 @@ def _solve_optimal_projection(pool: pd.DataFrame, salary_cap: int = 50000) -> fl
         for s in slots:
             prob += plp.lpSum(x[(i, s)] for i in range(n)) == 1, f"slot_{s}_filled"
 
-        # Slot eligibility
-        for i in range(n):
-            pos = str(pool.iloc[i].get("pos") or "").upper()
-            elig = {
-                "QB": pos == "QB",
-                "RB1": pos == "RB",
-                "RB2": pos == "RB",
-                "WR1": pos == "WR",
-                "WR2": pos == "WR",
-                "WR3": pos == "WR",
-                "TE": pos == "TE",
-                "FLEX": pos in ("RB","WR","TE"),
-                "DST": pos == "DST",
-            }
-            for s in slots:
-                if not elig[s]:
-                    prob += x[(i, s)] == 0, f"elig_{i}_{s}"
 
         # Salary cap
         salaries = []
@@ -399,7 +382,6 @@ def run_tournament(
                 next_mask = info.get("action_mask") if isinstance(info, dict) else None
                 if next_mask is not None:
                     mask = next_mask
-
 
             if not idxs:
                 continue
