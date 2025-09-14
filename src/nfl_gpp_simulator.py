@@ -79,6 +79,7 @@ import numpy as np
 import pulp as plp
 import multiprocessing as mp
 from risk_model import build_player_risk, build_covariance_from_corr, sample_skewed_outcomes
+from risk_audit import RiskAuditAccumulator
 import pandas as pd
 import statistics
 
@@ -203,6 +204,11 @@ class NFL_GPP_Simulator:
         self.pool_factor = pool_factor
         self.targets = {}
         self.stack_exposure_df = None
+
+        self.output_dir = os.path.join(os.path.dirname(__file__), "..", "output")
+        self._audit = RiskAuditAccumulator(output_dir=self.output_dir)
+        self.risk_table_df = None
+        self._players_by_id = {}
 
         self.load_config()
         self.load_rules()
@@ -833,7 +839,10 @@ class NFL_GPP_Simulator:
                 pid_team = dst_id_by_team(self._player_ids_df, team)
                 if pid_team:
                     rec["ID"] = str(pid_team)
-
+        for rec in self.player_dict.values():
+            pid = rec.get("ID")
+            if pid:
+                self._players_by_id[pid] = rec
         return df
 
     def load_contest_data(self, path):
@@ -1086,6 +1095,22 @@ class NFL_GPP_Simulator:
                         team = "JAC"
                     if opp == "JAX":
                         opp = "JAC"
+
+                self._audit.add_risk_row(
+                    name=str(row.get("name") or row.get("Name") or player_name),
+                    pos=pos,
+                    team=team,
+                    proj=fpts,
+                    floor=(row.get("projections_floor") or row.get("floor")),
+                    ceiling=(row.get("projections_ceiling") or row.get("ceiling")),
+                    consistency=row.get("fantasyyear_consistency"),
+                    upside=row.get("fantasyyear_upside"),
+                    duds=row.get("fantasyyear_duds"),
+                    sigma_base=sigma_base,
+                    sigma_eff=stddev,
+                    r_plus=r_plus,
+                    r_minus=r_minus,
+                )
 
                 # Build matchup identifiers that are consistent for both teams
                 if opp:
@@ -2729,6 +2754,8 @@ class NFL_GPP_Simulator:
         # ranks = np.argsort(fpts_array, axis=0)[::-1].astype(np.uint16)
         ranks = np.argsort(-fpts_array, axis=0).astype(np.uint32)
 
+        # jitter tracking removed for simulator
+
         # count wins, top 10s vectorized
         wins, win_counts = np.unique(ranks[0, :], return_counts=True)
         cashes, cash_counts = np.unique(ranks[0:len(list(self.payout_structure.values()))], return_counts=True)
@@ -2790,6 +2817,13 @@ class NFL_GPP_Simulator:
                 ][0]
             if idx in cashes:
                 self.field_lineups[idx]["Cashes"] += cash_counts[np.where(cashes == idx)][0]
+        try:
+            if self._audit:
+                self._audit.output_dir = self.output_dir
+                self.risk_table_df = self._audit.build_risk_table()
+                self._audit.save_risk_table("risk_table_simulator.csv")
+        except Exception:
+            pass
 
         end_time = time.time()
         diff = end_time - start_time

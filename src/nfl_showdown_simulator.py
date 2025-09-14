@@ -16,6 +16,7 @@ import collections
 import re
 from scipy.stats import norm, kendalltau, gamma
 from risk_model import build_player_risk, sample_skewed_outcomes
+from risk_audit import RiskAuditAccumulator
 import matplotlib.pyplot as plt
 import seaborn as sns
 from numba import njit, jit
@@ -62,6 +63,11 @@ class NFL_Showdown_Simulator:
         self.max_pct_off_optimal = 0.4
         self.teams_dict = collections.defaultdict(list)
         self.correlation_rules = {}
+
+        self.output_dir = os.path.join(os.path.dirname(__file__), "..", "output")
+        self._audit = RiskAuditAccumulator(output_dir=self.output_dir)
+        self.risk_table_df = None
+        self._players_by_id = {}
 
         self.load_config()
         self.load_rules()
@@ -364,6 +370,10 @@ class NFL_Showdown_Simulator:
                                 continue
                             break
                     self.id_name_dict[str(row.get("id", ""))] = row.get("nickname") or row.get("displayname", "")
+        for rec in self.player_dict.values():
+            pid = rec.get("ID")
+            if pid:
+                self._players_by_id[pid] = rec
 
     def load_correlation_rules(self):
         if len(self.correlation_rules.keys()) > 0:
@@ -630,6 +640,21 @@ class NFL_Showdown_Simulator:
                 if self.site == "fd":
                     if team == "JAX":
                         team = "JAC"
+                self._audit.add_risk_row(
+                    name=str(row.get("name") or row.get("Name") or player_name),
+                    pos=pos,
+                    team=team,
+                    proj=fpts,
+                    floor=(row.get("projections_floor") or row.get("floor")),
+                    ceiling=(row.get("projections_ceiling") or row.get("ceiling")),
+                    consistency=row.get("fantasyyear_consistency"),
+                    upside=row.get("fantasyyear_upside"),
+                    duds=row.get("fantasyyear_duds"),
+                    sigma_base=sigma_base,
+                    sigma_eff=stddev,
+                    r_plus=r_plus,
+                    r_minus=r_minus,
+                )
                 if team not in self.team_list:
                     self.team_list.append(team)
                 own = float(row["projections_projown"]) if row["projections_projown"] != "" else 0
@@ -1433,6 +1458,8 @@ class NFL_Showdown_Simulator:
         # ranks = np.argsort(fpts_array, axis=0)[::-1].astype(np.uint16)
         ranks = np.argsort(-fpts_array, axis=0).astype(np.uint32)
 
+        # jitter tracking removed for simulator
+
         # count wins, top 10s vectorized
         wins, win_counts = np.unique(ranks[0, :], return_counts=True)
         t10, t10_counts = np.unique(ranks[0:9], return_counts=True)
@@ -1488,6 +1515,13 @@ class NFL_Showdown_Simulator:
                 self.field_lineups[idx]["Lineup"]["Top10"] += t10_counts[
                     np.where(t10 == idx)
                 ][0]
+        try:
+            if self._audit:
+                self._audit.output_dir = self.output_dir
+                self.risk_table_df = self._audit.build_risk_table()
+                self._audit.save_risk_table("risk_table_simulator.csv")
+        except Exception:
+            pass
 
         end_time = time.time()
         diff = end_time - start_time
