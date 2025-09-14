@@ -125,3 +125,12 @@ with st.form("simulate"):
             stack_df = pd.read_csv(stack_path)
             st.subheader("Stack Exposure")
             st.dataframe(stack_df)
+        try:
+            if hasattr(sim, "risk_table_df") and sim.risk_table_df is not None and not sim.risk_table_df.empty:
+                st.subheader("Risk Audit (Simulator)")
+                st.dataframe(sim.risk_table_df, use_container_width=True, height=350)
+            if hasattr(sim, "jitter_table_df") and sim.jitter_table_df is not None and not sim.jitter_table_df.empty:
+                st.subheader("Jitter + Selection Audit (Simulator)")
+                st.dataframe(sim.jitter_table_df, use_container_width=True, height=350)
+        except Exception:
+            pass
