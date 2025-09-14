@@ -1213,7 +1213,9 @@ class NFL_Showdown_Simulator:
         beta = sd**2 / mean
         return alpha, beta
 
-    def run_simulation_for_game(self, team1_id, team1, team2_id, team2, num_iterations):
+    def run_simulation_for_game(
+        self, team1_id, team1, team2_id, team2, num_iterations, seed=None
+    ):
         def get_corr_value(player1, player2):
             # First, check for specific player-to-player correlations
             if player2["Name"] in player1.get("Player Correlations", {}):
@@ -1291,7 +1293,7 @@ class NFL_Showdown_Simulator:
             }
             for player in game
         ]
-        rng = np.random.default_rng(getattr(self, "seed", None))
+        rng = np.random.default_rng(seed)
         samples = np.vstack(
             [sample_skewed_outcomes(rng, means, risks, corr) for _ in range(num_iterations)]
         )
@@ -1376,6 +1378,12 @@ class NFL_Showdown_Simulator:
 
         start_time = time.time()
         temp_fpts_dict = {}
+        parent_seed = getattr(self, "seed", None)
+
+        def _child_seed(parent_seed, idx):
+            if parent_seed is None:
+                return None
+            return (hash((int(parent_seed), int(idx))) & 0xFFFFFFFF) or 1
 
         # Get the only matchup since it's a showdown
         matchup = list(self.matchups)[0]
@@ -1387,6 +1395,7 @@ class NFL_Showdown_Simulator:
             matchup[1],
             self.teams_dict[matchup[1]],
             self.num_iterations,
+            _child_seed(parent_seed, 0),
         )
 
         # Run the simulation for the single game
