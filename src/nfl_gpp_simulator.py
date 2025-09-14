@@ -2462,13 +2462,16 @@ class NFL_GPP_Simulator:
 
     @staticmethod
     def run_simulation_for_game(
-        team1_id,
-        team1,
-        team2_id,
-        team2,
+        game_idx,
+        game_payload,
         num_iterations,
         roster_construction,
+        seed=None,
     ):
+        """
+        Worker for one game. Accepts an explicit seed so we don’t rely on `self` in a subprocess.
+        """
+        team1_id, team1, team2_id, team2 = game_payload
         # Define correlations between positions
 
         def get_corr_value(player1, player2):
@@ -2558,7 +2561,7 @@ class NFL_GPP_Simulator:
             }
             for player in game
         ]
-        rng = np.random.default_rng(getattr(self, "seed", None))
+        rng = np.random.default_rng(seed)
         samples = np.vstack(
             [sample_skewed_outcomes(rng, means, risks, corr) for _ in range(num_iterations)]
         )
@@ -2667,16 +2670,28 @@ class NFL_GPP_Simulator:
         start_time = time.time()
         temp_fpts_dict = {}
         size = self.num_iterations
+        parent_seed = getattr(self, "seed", None)
+
+        def _child_seed(parent_seed, idx):
+            if parent_seed is None:
+                return None
+            return (hash((int(parent_seed), int(idx))) & 0xFFFFFFFF) or 1
+
         game_simulation_params = []
-        for m in self.matchups:
+        for idx, m in enumerate(self.matchups):
+            payload = (
+                m[0],
+                self.teams_dict[m[0]],
+                m[1],
+                self.teams_dict[m[1]],
+            )
             game_simulation_params.append(
                 (
-                    m[0],
-                    self.teams_dict[m[0]],
-                    m[1],
-                    self.teams_dict[m[1]],
+                    idx,
+                    payload,
                     self.num_iterations,
                     self.roster_construction,
+                    _child_seed(parent_seed, idx),
                 )
             )
         with mp.Pool() as pool:
