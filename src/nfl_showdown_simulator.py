@@ -67,7 +67,7 @@ class NFL_Showdown_Simulator:
         self.output_dir = os.path.join(os.path.dirname(__file__), "..", "output")
         self._audit = RiskAuditAccumulator(output_dir=self.output_dir)
         self.risk_table_df = None
-        self.jitter_table_df = None
+
         self._players_by_id = {}
 
         self.load_config()
@@ -1459,41 +1459,7 @@ class NFL_Showdown_Simulator:
         # ranks = np.argsort(fpts_array, axis=0)[::-1].astype(np.uint16)
         ranks = np.argsort(-fpts_array, axis=0).astype(np.uint32)
 
-        try:
-            player_info_by_id = {rec["ID"]: rec for rec in self.player_dict.values() if rec.get("ID")}
-            index_to_key = list(self.field_lineups.keys())
-            lineup_players = {idx: self.field_lineups[idx]["Lineup"]["Lineup"] for idx in index_to_key}
-            noise_by_id = {}
-            for pid, samples in temp_fpts_dict.items():
-                rec = player_info_by_id.get(pid)
-                if rec is None:
-                    continue
-                proj = rec.get("fieldFpts") or rec.get("Fpts")
-                noise_by_id[pid] = np.array(samples) - float(proj or 0)
-            for sim_idx in range(self.num_iterations):
-                self._audit.start_iteration()
-                selected_lineup_idx = ranks[0, sim_idx]
-                selected_ids = lineup_players.get(index_to_key[selected_lineup_idx], [])
-                for pid, noise_arr in noise_by_id.items():
-                    rec = player_info_by_id.get(pid)
-                    pos_val = rec.get("Position")
-                    if isinstance(pos_val, list):
-                        pos_val = pos_val[0] if pos_val else ""
-                    self._audit.record_jitter_sample(
-                        player_id=pid,
-                        name=rec.get("Name"),
-                        pos=pos_val,
-                        team=rec.get("Team"),
-                        proj=rec.get("fieldFpts") or rec.get("Fpts"),
-                        sigma_base=rec.get("SigmaBase"),
-                        sigma_eff=rec.get("StdDev"),
-                        r_plus=rec.get("RPlus"),
-                        r_minus=rec.get("RMinus"),
-                        noise_points=float(noise_arr[sim_idx]),
-                    )
-                self._audit.finalize_iteration(selected_ids)
-        except Exception:
-            pass
+
 
         # count wins, top 10s vectorized
         wins, win_counts = np.unique(ranks[0, :], return_counts=True)
@@ -1554,9 +1520,7 @@ class NFL_Showdown_Simulator:
             if self._audit:
                 self._audit.output_dir = self.output_dir
                 self.risk_table_df = self._audit.build_risk_table()
-                self.jitter_table_df = self._audit.build_jitter_table()
-                self._audit.save_risk_table("risk_table_simulator.csv")
-                self._audit.save_jitter_table("risk_jitter_simulator.csv")
+
         except Exception:
             pass
 
