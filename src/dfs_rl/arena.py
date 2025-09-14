@@ -3,13 +3,14 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 
-from dfs_rl.envs.dk_nfl_env import DKNFLEnv, compute_reward
+from dfs_rl.envs.dk_nfl_env import DKNFLEnv
 from dfs_rl.agents.random_agent import RandomAgent
 from dfs_rl.agents.pg_agent import PGAgent
 from dfs_rl.utils.lineups import lineup_key, jaccard_similarity, SLOTS
+from dfs.constraints import DEFAULT_SALARY_CAP
 
 # Use the same feature/count utilities as the optimizer/analysis
-from src.dfs.stacks import compute_features, compute_presence_and_counts, classify_bucket
+from dfs.stacks import compute_features, compute_presence_and_counts, classify_bucket
 
 POINTS_COLS = [
     "projections_actpts",
@@ -67,37 +68,60 @@ def _stack_bonus_from_weights(lineup: dict, weights: dict) -> float:
             total += float(w) * int(feats.get("flex_is_te", 0))
     return float(total)
 
-def _run_agent(env: DKNFLEnv, agent, train: bool) -> Tuple[List[int], int, float]:
+def _run_agent(env: DKNFLEnv, agent, train: bool):
     """Rollout one lineup and optionally train the agent."""
     obs, info = env.reset()
     done = False
     steps = 0
+    actions = []
+    rewards: List[float] = []
     while not done:
-        action = agent.act(obs, info)
+        mask = info.get("action_mask")
+        if hasattr(agent, "sample"):
+            out = agent.sample(mask)
+            if isinstance(out, tuple):
+                action, logp = out
+                if train:
+                    actions.append((None, logp))
+            else:
+                action = out
+        else:
+            action = agent.act(mask)
         obs, reward, done, truncated, info = env.step(action)
-        if train and hasattr(agent, "train_step"):
-            agent.train_step(obs, reward, done, info)
+        if train:
+            if hasattr(agent, "update") and hasattr(agent, "sample"):
+                rewards.append(reward)
+            elif hasattr(agent, "train_step"):
+                agent.train_step(obs, reward, done, info)
         steps += 1
-    return env.state["idxs"], steps, float(info.get("sum_proj", 0.0))
+    if train and hasattr(agent, "update") and actions:
+        agent.update([], actions, rewards)
+    return info.get("lineup_indices", []), steps
 
 def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150,
-                   train_pg: bool = True, cfg: Optional[dict] = None) -> pd.DataFrame:
+                   train_pg: bool = True, cfg: Optional[dict] = None,
+                   min_salary_pct: float | None = None) -> pd.DataFrame:
     cfg = cfg or {}
-    env = DKNFLEnv(pool)
+    env = DKNFLEnv(pool, min_salary_pct=min_salary_pct)
+    salaries = pool["salary"].to_numpy(dtype=float)
     agents = {
-        "random": RandomAgent(seed=1),
-        "pg": PGAgent(n_players=len(pool), seed=2, cfg=cfg),
+        "random": RandomAgent(salaries, seed=1)
+        if "salaries" in RandomAgent.__init__.__code__.co_varnames
+        else RandomAgent(seed=1),
     }
+    if train_pg:
+        agents["pg"] = PGAgent(n_players=len(pool), seed=2)
 
     rl_cfg = cfg.get("rl", {})
     rw = cfg.get("reward_weights", {}) or {}
 
     pts_col = _find_points_col(pool) or "projections_proj"
+    act_col = "projections_actpts" if "projections_actpts" in pool.columns else None
     seen_keys_global = set()
     exposure_count: Counter[str] = Counter()
 
-    def accept_lineup_if_unique(lineup: dict) -> Tuple[bool, tuple]:
-        key = lineup_key(lineup)
+    def accept_lineup_if_unique(lineup_ids: dict) -> Tuple[bool, tuple]:
+        key = lineup_key(lineup_ids)
         if key in seen_keys_global:
             return False, key
         max_exp = rl_cfg.get("max_player_exposure")
@@ -112,39 +136,58 @@ def run_tournament(pool: pd.DataFrame, n_lineups_per_agent: int = 150,
             exposure_count[pid] += 1
         return True, key
 
-    rows = []
+    rows: List[dict] = []
     for name, agent in agents.items():
         for _ in range(n_lineups_per_agent):
             attempts, accepted, key = 0, False, tuple()
-            lineup_dict = {}
-            while attempts < rl_cfg.get("max_resample_attempts", 25) and not accepted:
-                idxs, steps, base_points = _run_agent(env, agent, train=(train_pg and name == "pg"))
+            lineup_dict: dict = {}
+            idxs: List[int] = []
+            max_attempts = rl_cfg.get("max_resample_attempts", 200)
+            while attempts < max_attempts and not accepted:
+                idxs, _ = _run_agent(env, agent, train=(train_pg and name == "pg"))
                 lineup_dict = _build_lineup(pool, idxs)
-                accepted, key = accept_lineup_if_unique(lineup_dict)
+                salary_total = sum(int(lineup_dict.get(f"{s}_salary", 0)) for s in SLOTS)
+                if min_salary_pct is not None and salary_total < int(DEFAULT_SALARY_CAP * min_salary_pct):
+                    attempts += 1
+                    continue
+                id_map = {f"{s}_id": lineup_dict.get(f"{s}_id") for s in SLOTS}
+                accepted, key = accept_lineup_if_unique(id_map)
                 attempts += 1
-            # stack-aware reward: add weighted bonus/penalties
+            if not accepted:
+                continue
+            base_points = sum(float(lineup_dict.get(f"{s}_proj", 0.0)) for s in SLOTS)
             stack_bonus = _stack_bonus_from_weights(lineup_dict, rw)
-            reward = compute_reward(lineup_dict, base_points, stack_bonus, rl_cfg, seen_keys_global)
+            reward = base_points + stack_bonus
             feats = compute_features(lineup_dict)
             flags, _ = compute_presence_and_counts(lineup_dict)
             bucket = classify_bucket(flags)
-            rows.append({
+            row = {s: lineup_dict.get(f"{s}_name") for s in SLOTS}
+            row.update({
                 "agent": name,
-                "reward": reward,
-                "lineup_key": "|".join(key),
+                "salary": sum(int(lineup_dict.get(f"{s}_salary", 0)) for s in SLOTS),
+                "projections_proj": base_points,
+                "projections_actpts": float(pool.loc[idxs, act_col].sum()) if act_col else 0.0,
                 "stack_bucket": bucket,
                 "double_te": feats.get("feat_double_te"),
                 "flex_pos": feats.get("flex_pos"),
                 "dst_conflicts": feats.get("feat_any_vs_dst"),
-                "is_duplicate": 0 if accepted else 1
+                "reward": reward,
+                "lineup_key": "|".join(key),
+                "is_duplicate": 0 if accepted else 1,
             })
+            rows.append(row)
 
     df = pd.DataFrame(rows)
+    if df.empty:
+        df.attrs["duplicates"] = 0
+        return df
     dupes = int(df.duplicated("lineup_key", keep=False).sum())
     if rl_cfg.get("dedupe_on_collect", True):
-        df = (df.sort_values(["reward"], ascending=False)
-                .drop_duplicates("lineup_key", keep="first")
-                .reset_index(drop=True))
+        df = (
+            df.sort_values(["reward"], ascending=False)
+            .drop_duplicates("lineup_key", keep="first")
+            .reset_index(drop=True)
+        )
     df.attrs["duplicates"] = dupes
     return df
 
