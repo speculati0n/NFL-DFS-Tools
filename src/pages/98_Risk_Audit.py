@@ -176,4 +176,3 @@ if jitter_path and os.path.exists(jitter_path):
     )
 else:
 
-
