@@ -24,7 +24,7 @@ Provides:
 
 Outputs written by callers:
   - risk_table_optimizer.csv / risk_table_simulator.csv
-  - risk_jitter_optimizer.csv / risk_jitter_simulator.csv
+
 """
 
 from typing import Dict, List, Optional, Iterable, Union

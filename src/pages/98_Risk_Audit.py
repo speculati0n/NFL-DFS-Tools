@@ -31,8 +31,7 @@ CAND_RISK = [
 CAND_JITTER = [
     os.path.join("outputs", "risk_jitter_optimizer.csv"),
     os.path.join("risk_jitter_optimizer.csv"),
-    os.path.join("outputs", "risk_jitter_simulator.csv"),
-    os.path.join("risk_jitter_simulator.csv"),
+
 ]
 
 with st.expander("Data sources", expanded=True):
@@ -109,7 +108,7 @@ else:
     st.info("No risk table found yet. Run the optimizer or simulator first.")
 
 st.markdown("---")
-st.header("Jitter + Selection Table")
+
 
 if jitter_path and os.path.exists(jitter_path):
     jdf = pd.read_csv(jitter_path)
@@ -176,4 +175,4 @@ if jitter_path and os.path.exists(jitter_path):
         key="dl_jitter",
     )
 else:
-    st.info("No jitter/selection table found yet. Run the optimizer or simulator (they write this).")
+
