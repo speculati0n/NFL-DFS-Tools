@@ -129,5 +129,6 @@ with st.form("simulate"):
             if hasattr(sim, "risk_table_df") and sim.risk_table_df is not None and not sim.risk_table_df.empty:
                 st.subheader("Risk Audit (Simulator)")
                 st.dataframe(sim.risk_table_df, use_container_width=True, height=350)
+
         except Exception:
             pass

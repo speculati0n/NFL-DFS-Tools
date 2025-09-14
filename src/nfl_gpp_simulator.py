@@ -208,6 +208,7 @@ class NFL_GPP_Simulator:
         self.output_dir = os.path.join(os.path.dirname(__file__), "..", "output")
         self._audit = RiskAuditAccumulator(output_dir=self.output_dir)
         self.risk_table_df = None
+
         self._players_by_id = {}
 
         self.load_config()
@@ -2754,7 +2755,7 @@ class NFL_GPP_Simulator:
         # ranks = np.argsort(fpts_array, axis=0)[::-1].astype(np.uint16)
         ranks = np.argsort(-fpts_array, axis=0).astype(np.uint32)
 
-        # jitter tracking removed for simulator
+
 
         # count wins, top 10s vectorized
         wins, win_counts = np.unique(ranks[0, :], return_counts=True)
@@ -2821,7 +2822,7 @@ class NFL_GPP_Simulator:
             if self._audit:
                 self._audit.output_dir = self.output_dir
                 self.risk_table_df = self._audit.build_risk_table()
-                self._audit.save_risk_table("risk_table_simulator.csv")
+
         except Exception:
             pass
 
