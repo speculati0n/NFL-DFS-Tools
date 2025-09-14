@@ -33,6 +33,7 @@ from selection_exposures import select_lineups, report_lineup_exposures
 from stack_metrics import analyze_lineup
 from player_ids_flex import load_player_ids_flex, dst_id_by_team, _norm_name
 from risk_model import build_player_risk, draw_optimizer_noise_points
+from risk_audit import RiskAuditAccumulator
 
 
 # --- begin Player dataclass (optimizer) ---
@@ -94,6 +95,10 @@ class NFL_Optimizer:
         self.default_def_var = 0.5
         self.min_lineup_salary = 0
         self.stack_exposure_df = None
+
+        self._audit = RiskAuditAccumulator(output_dir=getattr(self, "output_dir", None))
+        self.risk_table_df = None
+        self.jitter_table_df = None
 
         self.load_config()
         # Honor off-optimal floor from config (0..1). 0 disables.
@@ -488,6 +493,22 @@ class NFL_Optimizer:
                     duds_raw=row.get("fantasyyear_duds"),
                     beta_consistency=1.0,
                 )
+
+                self._audit.add_risk_row(
+                    name=str(row.get("Name") or row.get("name") or player_name),
+                    pos=position,
+                    team=team,
+                    proj=fpts,
+                    floor=(row.get("projections_floor") or row.get("floor")),
+                    ceiling=(row.get("projections_ceiling") or row.get("ceiling")),
+                    consistency=row.get("fantasyyear_consistency"),
+                    upside=row.get("fantasyyear_upside"),
+                    duds=row.get("fantasyyear_duds"),
+                    sigma_base=risk["sigma_base"],
+                    sigma_eff=risk["sigma_eff"],
+                    r_plus=risk["r_plus"],
+                    r_minus=risk["r_minus"],
+                )
                 stddev = risk["sigma_eff"]
                 ceil = float(
                     row.get("projections_ceiling")
@@ -568,35 +589,7 @@ class NFL_Optimizer:
             for (player, pos_str, team) in self.player_dict
         }
 
-        # set the objective - maximize fpts & set randomness amount from config
-        if self.randomness_amount != 0:
-            rng = np.random.default_rng()
-            self.problem += (
-                plp.lpSum(
-                    (
-                        self.player_dict[(player, pos_str, team)]["Fpts"]
-                        + draw_optimizer_noise_points(
-                            rng=rng,
-                            randomness_pct=self.randomness_amount,
-                            sigma_base=self.player_dict[(player, pos_str, team)]["SigmaBase"],
-                            r_plus=self.player_dict[(player, pos_str, team)]["RPlus"],
-                            r_minus=self.player_dict[(player, pos_str, team)]["RMinus"],
-                        )
-                    )
-                    * lp_variables[self.player_dict[(player, pos_str, team)]["ID"]]
-                    for (player, pos_str, team) in self.player_dict
-                ),
-                "Objective",
-            )
-        else:
-            self.problem += (
-                plp.lpSum(
-                    self.player_dict[(player, pos_str, team)]["Fpts"]
-                    * lp_variables[self.player_dict[(player, pos_str, team)]["ID"]]
-                    for (player, pos_str, team) in self.player_dict
-                ),
-                "Objective",
-            )
+        # Objective will be set dynamically each iteration with jitter
 
         # Set the salary constraints
         max_salary = 50000 if self.site == "dk" else 60000
@@ -1179,6 +1172,49 @@ class NFL_Optimizer:
             pass
         num_pool = max(int(self.num_lineups * self.pool_factor), self.num_lineups)
         for i in range(num_pool):
+            # ---- Begin lineup-build iteration ----
+            self._audit.start_iteration()
+
+            _rng = np.random.default_rng(getattr(self, "seed", None))
+
+            noise_by_id = {}
+            for (player, pos_str, team) in self.player_dict:
+                rec = self.player_dict[(player, pos_str, team)]
+                noise = draw_optimizer_noise_points(
+                    rng=_rng,
+                    randomness_pct=self.randomness_amount,
+                    sigma_base=rec["SigmaBase"],
+                    r_plus=rec["RPlus"],
+                    r_minus=rec["RMinus"],
+                )
+                pid = rec["ID"]
+                noise_by_id[pid] = noise
+
+                self._audit.record_jitter_sample(
+                    player_id=pid,
+                    name=player,
+                    pos=pos_str,
+                    team=team,
+                    proj=rec.get("Fpts"),
+                    sigma_base=rec.get("SigmaBase"),
+                    sigma_eff=rec.get("StdDev"),
+                    r_plus=rec.get("RPlus"),
+                    r_minus=rec.get("RMinus"),
+                    noise_points=noise,
+                )
+
+            self.problem += (
+                plp.lpSum(
+                    (
+                        self.player_dict[(player, pos_str, team)]["Fpts"]
+                        + noise_by_id[self.player_dict[(player, pos_str, team)]["ID"]]
+                    )
+                    * lp_variables[self.player_dict[(player, pos_str, team)]["ID"]]
+                    for (player, pos_str, team) in self.player_dict
+                ),
+                "Objective",
+            )
+
             try:
                 self.problem.solve(plp.PULP_CBC_CMD(msg=0))
             except plp.PulpSolverError:
@@ -1188,31 +1224,38 @@ class NFL_Optimizer:
                     )
                 )
 
-            # Get the lineup and add it to our list
-            player_ids = [
-                player for player in lp_variables if lp_variables[player].varValue != 0
+            selected_ids = [
+                self.player_dict[(player, pos_str, team)]["ID"]
+                for (player, pos_str, team) in self.player_dict
+                if lp_variables[self.player_dict[(player, pos_str, team)]["ID"]].value() == 1
             ]
+
+            player_ids = selected_ids
             players = []
             for key, value in self.player_dict.items():
                 if value["ID"] in player_ids:
                     players.append(key)
 
-            # --- Salary bounds guard ---
-            # Convert chosen variable IDs -> Player objects, then slot to nine
-            players_ids = player_ids
-            players_objs = self.get_players(players_ids)
+            players_objs = self.get_players(player_ids)
             slots = self.select_slot_players(players_objs)
-            nine = [slots["QB"], slots["RB1"], slots["RB2"], slots["WR1"], slots["WR2"], slots["WR3"], slots["TE"], slots["FLEX"], slots["DST"]]
+            nine = [
+                slots["QB"],
+                slots["RB1"],
+                slots["RB2"],
+                slots["WR1"],
+                slots["WR2"],
+                slots["WR3"],
+                slots["TE"],
+                slots["FLEX"],
+                slots["DST"],
+            ]
 
-            # Deterministic totals based on the *nine* that will be exported
-            det_proj   = sum(p.proj   for p in nine)
+            det_proj = sum(p.proj for p in nine)
             det_salary = sum(p.salary for p in nine)
 
-            # Active cap/floor (match LP constraints)
             max_salary = 50000 if self.site == "dk" else 60000
             min_salary = self.min_lineup_salary if self.min_lineup_salary else (45000 if self.site == "dk" else 55000)
 
-            # Enforce at runtime (tiny epsilon for float safety)
             if det_salary > max_salary + 1e-6 or det_salary < min_salary - 1e-6:
                 raise AssertionError(
                     f"Lineup salary {det_salary} out of bounds "
@@ -1222,15 +1265,13 @@ class NFL_Optimizer:
                     f"TE={nine[6].name}, FLEX={nine[7].name}, DST={nine[8].name}"
                 )
 
-            # Store lineup with deterministic projection (same metric as constraints)
             self.lineups.append((players, det_proj))
 
             progress = i + 1
             percent = (progress / num_pool) * 100
 
+            self._audit.finalize_iteration(selected_ids)
 
-
-            # Ensure this lineup isn't picked again
             self.problem += (
                 plp.lpSum(
                     lp_variables[self.player_dict[player]["ID"]] for player in players
@@ -1238,27 +1279,7 @@ class NFL_Optimizer:
                 <= len(players) - self.num_uniques,
                 f"Lineup {i}",
             )
-
-            # Set a new random fpts projection within their distribution
-            if self.randomness_amount != 0:
-                rng = np.random.default_rng()
-                self.problem += (
-                    plp.lpSum(
-                        (
-                            self.player_dict[(player, pos_str, team)]["Fpts"]
-                            + draw_optimizer_noise_points(
-                                rng=rng,
-                                randomness_pct=self.randomness_amount,
-                                sigma_base=self.player_dict[(player, pos_str, team)]["SigmaBase"],
-                                r_plus=self.player_dict[(player, pos_str, team)]["RPlus"],
-                                r_minus=self.player_dict[(player, pos_str, team)]["RMinus"],
-                            )
-                        )
-                        * lp_variables[self.player_dict[(player, pos_str, team)]["ID"]]
-                        for (player, pos_str, team) in self.player_dict
-                    ),
-                    "Objective",
-                )
+            # ---- End lineup-build iteration ----
 
         if self.profile:
             profiles = self.config.get("profiles", {})
@@ -1285,6 +1306,19 @@ class NFL_Optimizer:
         else:
             # truncate pool to requested number of lineups
             self.lineups = self.lineups[: self.num_lineups]
+
+        # Update output_dir in case it was set later
+        if hasattr(self, "output_dir") and self._audit:
+            self._audit.output_dir = self.output_dir
+
+        # Build & save
+        try:
+            self.risk_table_df = self._audit.build_risk_table()
+            self.jitter_table_df = self._audit.build_jitter_table()
+            self._audit.save_risk_table("risk_table_optimizer.csv")
+            self._audit.save_jitter_table("risk_jitter_optimizer.csv")
+        except Exception:
+            pass
 
     def output(self):
         print("Lineups done generating. Outputting.")

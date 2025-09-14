@@ -63,11 +63,11 @@ with st.form("optimize"):
     submitted_opt = st.form_submit_button("Run Optimizer")
     if submitted_opt:
         if mode_opt == "showdown":
-            opto = NFL_Showdown_Optimizer(site_opt, num_lineups, num_uniques)
+            optimizer = NFL_Showdown_Optimizer(site_opt, num_lineups, num_uniques)
         else:
-            opto = NFL_Optimizer(site_opt, num_lineups, num_uniques)
-        opto.optimize()
-        lineup_path, stack_path = opto.output()
+            optimizer = NFL_Optimizer(site_opt, num_lineups, num_uniques)
+        optimizer.optimize()
+        lineup_path, stack_path = optimizer.output()
         if save_lineups:
             dest_dir = os.path.join(UPLOAD_DIR, site_opt)
             os.makedirs(dest_dir, exist_ok=True)
@@ -79,6 +79,15 @@ with st.form("optimize"):
             stack_df = pd.read_csv(stack_path)
             st.subheader("Stack Exposure")
             st.dataframe(stack_df)
+        try:
+            if hasattr(optimizer, "risk_table_df") and optimizer.risk_table_df is not None and not optimizer.risk_table_df.empty:
+                st.subheader("Risk Audit (Optimizer)")
+                st.dataframe(optimizer.risk_table_df, use_container_width=True, height=350)
+            if hasattr(optimizer, "jitter_table_df") and optimizer.jitter_table_df is not None and not optimizer.jitter_table_df.empty:
+                st.subheader("Jitter + Selection Audit (Optimizer)")
+                st.dataframe(optimizer.jitter_table_df, use_container_width=True, height=350)
+        except Exception:
+            pass
 
 # Simulation section
 st.header("Simulate Tournament")
