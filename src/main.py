@@ -115,10 +115,19 @@ with st.form("simulate"):
             sim.generate_field_lineups()
             sim.run_tournament_simulation()
             lineup_path, exposure_path, stack_path = sim.output()
-        lineup_df = pd.read_csv(lineup_path)
+        lineup_df = pd.read_csv(lineup_path, nrows=1000)
         exposure_df = pd.read_csv(exposure_path)
-        st.subheader("Lineups")
+        st.subheader("Lineups (showing first 1,000 entries)")
         st.dataframe(lineup_df)
+        if lineup_path and os.path.exists(lineup_path):
+            with open(lineup_path, "rb") as f:
+                lineup_csv = f.read()
+            st.download_button(
+                "Download full lineup CSV",
+                lineup_csv,
+                file_name=os.path.basename(lineup_path),
+                mime="text/csv",
+            )
         st.subheader("Exposure")
         st.dataframe(exposure_df)
         if stack_path:
