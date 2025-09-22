@@ -1,6 +1,7 @@
 import sys, os
 import pytest
 import csv
+import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 from nfl_gpp_simulator import NFL_GPP_Simulator
@@ -73,6 +74,54 @@ def test_matchups_populated_and_lineups_generate(monkeypatch):
     sim.optimal_score = 200
     sim.generate_field_lineups()
     assert len(sim.field_lineups) > 0
+
+
+def test_sort_lineup_swaps_latest_start_into_flex():
+    sim = NFL_GPP_Simulator.__new__(NFL_GPP_Simulator)
+    sim.position_map = NFL_GPP_Simulator.position_map
+    sim.player_dict = {}
+    sim.game_info = {}
+    sim.player_start_times = {}
+
+    base_time = datetime.datetime(2025, 9, 21, 13, 0)
+    late_time = datetime.datetime(2025, 9, 21, 16, 25)
+
+    def register(pid, pos, matchup, start_time):
+        record = {
+            "ID": str(pid),
+            "Position": [pos],
+            "Matchup": matchup,
+            "StartTime": start_time,
+        }
+        sim.player_dict[(f"player{pid}", str([pos]), "TEAM")] = record
+        sim.player_start_times[str(pid)] = start_time
+        sim.game_info[matchup] = start_time
+
+    register(1, "DST", "AAA@BBB", base_time)
+    register(2, "QB", "AAA@BBB", base_time)
+    register(3, "RB", "AAA@BBB", base_time)
+    register(4, "RB", "AAA@BBB", base_time)
+    register(5, "WR", "AAA@BBB", late_time)
+    register(6, "WR", "AAA@BBB", base_time)
+    register(7, "WR", "AAA@BBB", base_time)
+    register(8, "TE", "AAA@BBB", base_time)
+    register(9, "WR", "AAA@BBB", base_time)
+
+    lineup = [
+        "1",  # DST
+        "2",  # QB
+        "3",  # RB1
+        "4",  # RB2
+        "5",  # WR1 (late)
+        "6",  # WR2
+        "7",  # WR3
+        "8",  # TE
+        "9",  # FLEX (early WR)
+    ]
+
+    sorted_lineup = sim.sort_lineup_by_start_time(list(lineup))
+    assert sorted_lineup[8] == "5"
+    assert sorted_lineup[4] == "9"
 
 
 def test_output_includes_stack_columns(monkeypatch):
