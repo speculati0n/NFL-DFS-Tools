@@ -10,6 +10,7 @@ import pulp as plp
 import copy
 import itertools
 import re
+from typing import Optional
 
 def _normalize_pos_key_and_value(rec):
     # Ensure dict has 'Position' key with normalized value (D/DEF/DS/D/ST->DST).
@@ -36,6 +37,61 @@ from risk_model import build_player_risk, draw_optimizer_noise_points
 from risk_audit import RiskAuditAccumulator
 
 
+# --- begin: kickoff helpers ---
+def _extract_matchup_time(game_string):
+    if game_string is None:
+        return None
+
+    text = str(game_string).strip()
+    if not text or text.lower() in {"nan", "none"}:
+        return None
+
+    match = re.match(
+        r"(\w{2,4}\s*@\s*\w{2,4})\s+(\d{1,2}/\d{1,2}/\d{4})\s+(\d{1,2}:\d{2}\s*[AP]M\s*ET)",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    if not match:
+        return None
+
+    matchup_raw, date_str, time_str = match.groups()
+    matchup = re.sub(r"\s+", "", matchup_raw).upper()
+    cleaned_time = time_str.upper().replace(" ", "")
+    if cleaned_time.endswith("ET"):
+        cleaned_time = cleaned_time[:-2]
+
+    time_obj = datetime.datetime.strptime(cleaned_time, "%I:%M%p")
+    date_obj = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
+    dt = datetime.datetime.combine(date_obj, time_obj.time())
+    return matchup, dt
+
+
+def _canonical_matchup_key(matchup: str) -> str:
+    if not matchup:
+        return ""
+    key = str(matchup).strip().upper()
+    key = key.replace("VS", "@")
+    key = key.replace(" ", "")
+    return key
+
+
+def _matchup_key_variants(matchup: str):
+    base = _canonical_matchup_key(matchup)
+    if not base:
+        return set()
+    variants = {base}
+    if "@" in base:
+        parts = [p for p in base.split("@") if p]
+        if len(parts) == 2:
+            a, b = parts
+            variants.update({f"{a}@{b}", f"{b}@{a}", "@".join(sorted(parts))})
+    return variants
+
+
+# --- end: kickoff helpers ---
+
+
 # --- begin Player dataclass (optimizer) ---
 try:
     from dataclasses import dataclass
@@ -55,6 +111,7 @@ if dataclass is not None and "class Player(" not in globals():
         own: float = 0.0
         id: int = 0
         key: str = ""
+        start_time: Optional[datetime.datetime] = None
 # --- end Player dataclass (optimizer) ---
 
 
@@ -77,6 +134,8 @@ class NFL_Optimizer:
         self.players_by_team = {}
         self.lineups = []
         self.player_dict = {}
+        self.game_info = {}
+        self.player_start_time_by_id = {}
         self.at_least = {}
         self.at_most = {}
         self.team_limits = {}
@@ -249,6 +308,13 @@ class NFL_Optimizer:
 
             pos = str(rec.get("Position", pos_str)).upper()
             team_abbrev = str(rec.get("TeamAbbrev", team)).upper()
+            start_time = rec.get("StartTime")
+            if start_time is None:
+                start_time = self.player_start_time_by_id.get(str(rec.get("ID", pid)))
+            if start_time is None:
+                matchup_key = _canonical_matchup_key(rec.get("Matchup"))
+                if matchup_key:
+                    start_time = self.game_info.get(matchup_key)
             p = Player(
                 name=str(name),
                 pos=pos,
@@ -260,6 +326,7 @@ class NFL_Optimizer:
                 own=_sf(rec.get("Own", rec.get("OWN", 0.0)), 0.0),
                 id=_si(rec.get("ID", pid), pid),
                 key=str(rec.get("ID", pid)),
+                start_time=start_time,
             )
             out.append(p)
         return out
@@ -294,7 +361,7 @@ class NFL_Optimizer:
         used_ids = {id(x) for x in ([qb, dst] + rb + wr + te) if x is not None}
         flex = next((p for p in skill if id(p) not in used_ids), None)
 
-        return {
+        slots = {
             "QB": qb,
             "RB1": rb[0] if len(rb) > 0 else None,
             "RB2": rb[1] if len(rb) > 1 else None,
@@ -305,6 +372,57 @@ class NFL_Optimizer:
             "FLEX": flex,
             "DST": dst,
         }
+
+        def _time_key(player):
+            if player is None:
+                return (0, datetime.datetime.min)
+            start = getattr(player, "start_time", None)
+            if start is None:
+                return (0, datetime.datetime.min)
+            try:
+                if hasattr(start, "to_pydatetime"):
+                    start = start.to_pydatetime()
+            except Exception:
+                pass
+            if isinstance(start, datetime.datetime):
+                return (1, start)
+            return (0, datetime.datetime.min)
+
+        def _can_fill(slot_name, player):
+            if player is None:
+                return False
+            pos = str(getattr(player, "pos", "")).upper().strip()
+            if slot_name == "FLEX":
+                return pos in {"RB", "WR", "TE"}
+            if slot_name.startswith("RB"):
+                return pos == "RB"
+            if slot_name.startswith("WR"):
+                return pos == "WR"
+            if slot_name == "TE":
+                return pos == "TE"
+            return False
+
+        flex_player = slots.get("FLEX")
+        flex_time = _time_key(flex_player)
+        candidates = []
+        for slot_name in ("RB1", "RB2", "WR1", "WR2", "WR3", "TE"):
+            player = slots.get(slot_name)
+            if player is None or not _can_fill("FLEX", player):
+                continue
+            candidates.append((slot_name, player, _time_key(player)))
+
+        candidates.sort(key=lambda x: x[2], reverse=True)
+
+        for slot_name, player, cand_time in candidates:
+            if cand_time <= flex_time:
+                break
+            if flex_player is None or _can_fill(slot_name, flex_player):
+                slots["FLEX"], slots[slot_name] = slots[slot_name], slots["FLEX"]
+                flex_player = slots.get("FLEX")
+                flex_time = cand_time
+                break
+
+        return slots
 
     def flatten(self, list):
         return [item for sublist in list for item in sublist]
@@ -328,7 +446,6 @@ class NFL_Optimizer:
         Normalizes positions (D/DEF->DST). Stores the loaded df for later lookups.
         """
         import os
-        import pandas as pd
 
         self.player_ids_path = path
         if not os.path.exists(path):
@@ -338,6 +455,43 @@ class NFL_Optimizer:
                 path = alt
             else:
                 raise FileNotFoundError(f"player_ids file not found at {self.player_ids_path} or {alt}")
+
+        # Reset kickoff caches and parse Game Info if available
+        self.game_info = {}
+        self.player_start_time_by_id = {}
+        try:
+            raw_df = pd.read_csv(path, dtype=str, encoding="utf-8-sig")
+        except Exception:
+            raw_df = None
+
+        if raw_df is not None:
+            cols_lc = {c.lower(): c for c in raw_df.columns}
+            game_info_col = None
+            for name in ("game info", "game_info", "gameinfo"):
+                if name in cols_lc:
+                    game_info_col = cols_lc[name]
+                    break
+            id_col = None
+            for name in ("id", "player id", "playerid", "draftableid"):
+                if name in cols_lc:
+                    id_col = cols_lc[name]
+                    break
+
+            if game_info_col:
+                for _, row in raw_df.iterrows():
+                    parsed = _extract_matchup_time(row.get(game_info_col, ""))
+                    if not parsed:
+                        continue
+                    matchup, start_dt = parsed
+                    for key in _matchup_key_variants(matchup):
+                        if key:
+                            self.game_info[key] = start_dt
+
+                    if id_col:
+                        pid_raw = str(row.get(id_col, "") or "")
+                        pid_digits = re.sub(r"[^0-9]", "", pid_raw)
+                        if pid_digits:
+                            self.player_start_time_by_id[pid_digits] = start_dt
 
         df = load_player_ids_flex(path)
         self._player_ids_df = df.copy()
@@ -382,6 +536,13 @@ class NFL_Optimizer:
                 rec["ID"] = info["ID"]
                 if not rec.get("TeamAbbrev"):
                     rec["TeamAbbrev"] = info.get("TeamAbbrev", "")
+                start_time = self.player_start_time_by_id.get(str(info["ID"]))
+                if start_time:
+                    rec["StartTime"] = start_time
+            if not rec.get("StartTime"):
+                matchup_key = _canonical_matchup_key(rec.get("Matchup"))
+                if matchup_key:
+                    rec["StartTime"] = self.game_info.get(matchup_key)
 
         return df
 
@@ -1384,6 +1545,7 @@ class NFL_Optimizer:
                 ceil=float(data.get("Ceiling", 0.0)),
                 own=float(data.get("Ownership", 0.0)),
                 stddev=float(data.get("StdDev", 0.0)),
+                start_time=data.get("StartTime"),
             )
             pl.key = key
             pl.opp = data.get("Opponent", "")

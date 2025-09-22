@@ -3,7 +3,7 @@
 # Robust CSV writer for lineups with enforced DST presence and unique headers.
 from dataclasses import dataclass
 from typing import List, Optional, Callable, Iterable
-import csv, os, re
+import csv, os, re, datetime
 
 @dataclass
 class Player:
@@ -16,6 +16,7 @@ class Player:
     ceil: float = 0.0
     own: float = 0.0
     stddev: float = 0.0
+    start_time: Optional[datetime.datetime] = None
 
 def _norm_pos(p: str) -> str:
     p = (p or "").upper().strip()
@@ -55,11 +56,68 @@ def _extract_slots(players: Iterable[Player]):
     used_ids = {id(x) for x in ([qb, dst] + rb + wr + te) if x is not None}
     flex = next((p for p in skill if id(p) not in used_ids), None)
 
-    return {
-        "QB": qb, "RB1": rb[0] if len(rb)>0 else None, "RB2": rb[1] if len(rb)>1 else None,
-        "WR1": wr[0] if len(wr)>0 else None, "WR2": wr[1] if len(wr)>1 else None, "WR3": wr[2] if len(wr)>2 else None,
-        "TE": te[0] if len(te)>0 else None, "FLEX": flex, "DST": dst
+    slots = {
+        "QB": qb,
+        "RB1": rb[0] if len(rb)>0 else None,
+        "RB2": rb[1] if len(rb)>1 else None,
+        "WR1": wr[0] if len(wr)>0 else None,
+        "WR2": wr[1] if len(wr)>1 else None,
+        "WR3": wr[2] if len(wr)>2 else None,
+        "TE": te[0] if len(te)>0 else None,
+        "FLEX": flex,
+        "DST": dst,
     }
+
+    def _time_key(player):
+        if player is None:
+            return (0, datetime.datetime.min)
+        start = getattr(player, "start_time", None)
+        if start is None:
+            return (0, datetime.datetime.min)
+        try:
+            if hasattr(start, "to_pydatetime"):
+                start = start.to_pydatetime()
+        except Exception:
+            pass
+        if isinstance(start, datetime.datetime):
+            return (1, start)
+        return (0, datetime.datetime.min)
+
+    def _can_fill(slot_name, player):
+        if player is None:
+            return False
+        pos = _norm_pos(getattr(player, "pos", ""))
+        if slot_name == "FLEX":
+            return pos in {"RB", "WR", "TE"}
+        if slot_name.startswith("RB"):
+            return pos == "RB"
+        if slot_name.startswith("WR"):
+            return pos == "WR"
+        if slot_name == "TE":
+            return pos == "TE"
+        return False
+
+    flex_player = slots.get("FLEX")
+    flex_time = _time_key(flex_player)
+    candidates = []
+    for slot_name in ("RB1", "RB2", "WR1", "WR2", "WR3", "TE"):
+        player = slots.get(slot_name)
+        if player is None or not _can_fill("FLEX", player):
+            continue
+        candidates.append((slot_name, player, _time_key(player)))
+
+    candidates.sort(key=lambda x: x[2], reverse=True)
+
+    for slot_name, player, cand_time in candidates:
+        if cand_time <= flex_time:
+            break
+        if flex_player is None or _can_fill(slot_name, flex_player):
+            slots["FLEX"], slots[slot_name] = slots[slot_name], slots["FLEX"]
+            flex_player = slots.get("FLEX")
+            flex_time = cand_time
+            break
+
+    return slots
 
 def _own_sum(players: Iterable[Player]) -> float:
     return sum(float(getattr(p, "own", 0.0) or 0.0) for p in players)

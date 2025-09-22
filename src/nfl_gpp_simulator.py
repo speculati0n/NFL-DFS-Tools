@@ -177,6 +177,7 @@ class NFL_GPP_Simulator:
         self.gen_lineup_list = []
         self.roster_construction = []
         self.game_info = {}
+        self.player_start_times = {}
         self.id_name_dict = {}
         self.salary = None
         self.optimal_score = None
@@ -745,22 +746,61 @@ class NFL_GPP_Simulator:
 
     @staticmethod
     def extract_matchup_time(game_string):
-        # Extract the matchup, date, and time
+        if game_string is None:
+            return None
+
+        text = str(game_string).strip()
+        if not text or text.lower() in {"nan", "none"}:
+            return None
+
+        # Extract the matchup, date, and time allowing for optional spacing
         match = re.match(
-            r"(\w{2,4}@\w{2,4}) (\d{2}/\d{2}/\d{4}) (\d{2}:\d{2}[APM]{2} ET)",
-            game_string,
+            r"(\w{2,4}\s*@\s*\w{2,4})\s+(\d{1,2}/\d{1,2}/\d{4})\s+(\d{1,2}:\d{2}\s*[AP]M\s*ET)",
+            text,
+            flags=re.IGNORECASE,
         )
 
         if match:
-            matchup, date, time = match.groups()
-            # Convert 12-hour time format to 24-hour format
-            time_obj = datetime.datetime.strptime(time, "%I:%M%p ET")
-            # Convert the date string to datetime.date
-            date_obj = datetime.datetime.strptime(date, "%m/%d/%Y").date()
-            # Combine date and time to get a full datetime object
+            matchup_raw, date_str, time_str = match.groups()
+            matchup = re.sub(r"\s+", "", matchup_raw).upper()
+
+            cleaned_time = time_str.upper().replace(" ", "")
+            if cleaned_time.endswith("ET"):
+                cleaned_time = cleaned_time[:-2]
+
+            time_obj = datetime.datetime.strptime(cleaned_time, "%I:%M%p")
+            date_obj = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
             datetime_obj = datetime.datetime.combine(date_obj, time_obj.time())
             return matchup, datetime_obj
         return None
+
+    @staticmethod
+    def _canonical_matchup_key(matchup):
+        if not matchup:
+            return ""
+        key = str(matchup).strip().upper()
+        key = key.replace("VS", "@")
+        key = key.replace(" ", "")
+        return key
+
+    def _record_game_start(self, matchup, start_time):
+        if not matchup or start_time is None:
+            return
+
+        base = self._canonical_matchup_key(matchup)
+        if not base:
+            return
+
+        variants = {base}
+        if "@" in base:
+            parts = [p for p in base.split("@") if p]
+            if len(parts) == 2:
+                a, b = parts
+                variants.update({f"{a}@{b}", f"{b}@{a}", "@".join(sorted(parts))})
+
+        for key in variants:
+            if key:
+                self.game_info[key] = start_time
 
     # Load player IDs for exporting
     
@@ -778,6 +818,7 @@ class NFL_GPP_Simulator:
           - self._player_ids_df = canonical DataFrame
         """
         import os
+
         self.player_ids_path = path
         if not os.path.exists(path):
             # fall back to repo data path if configured like the optimizer
@@ -786,6 +827,44 @@ class NFL_GPP_Simulator:
                 path = alt
             else:
                 raise FileNotFoundError(f"player_ids file not found at {self.player_ids_path} or {alt}")
+
+        # Reset kickoff caches before ingesting
+        self.game_info = {}
+        self.player_start_times = {}
+
+        # Capture start times from any Game Info column if present
+        try:
+            raw_df = pd.read_csv(path, dtype=str, encoding="utf-8-sig")
+        except Exception:
+            raw_df = None
+
+        if raw_df is not None:
+            cols_lc = {c.lower(): c for c in raw_df.columns}
+            game_info_col = None
+            for name in ("game info", "game_info", "gameinfo"):
+                if name in cols_lc:
+                    game_info_col = cols_lc[name]
+                    break
+            id_col = None
+            for name in ("id", "player id", "playerid", "draftableid"):
+                if name in cols_lc:
+                    id_col = cols_lc[name]
+                    break
+
+            if game_info_col:
+                for _, row in raw_df.iterrows():
+                    raw_game_info = row.get(game_info_col, "")
+                    parsed = self.extract_matchup_time(raw_game_info)
+                    if not parsed:
+                        continue
+                    matchup, start_dt = parsed
+                    self._record_game_start(matchup, start_dt)
+
+                    if id_col:
+                        pid_raw = str(row.get(id_col, "") or "")
+                        pid_digits = re.sub(r"[^0-9]", "", pid_raw)
+                        if pid_digits:
+                            self.player_start_times[pid_digits] = start_dt
 
         df = load_player_ids_flex(path)
         self._player_ids_df = df.copy()
@@ -826,6 +905,9 @@ class NFL_GPP_Simulator:
                 rec["ID"] = pid
                 if not rec.get("TeamAbbrev"):
                     rec["TeamAbbrev"] = self.id_teamabbrev_dict.get(pid, "")
+                start_time = self.player_start_times.get(str(pid))
+                if start_time:
+                    rec["StartTime"] = start_time
             elif pos == "DST":
                 team = str(rec.get("TeamAbbrev") or "").upper()
                 if not team and isinstance(key, tuple) and len(key) >= 3:
@@ -833,6 +915,14 @@ class NFL_GPP_Simulator:
                 pid_team = dst_id_by_team(self._player_ids_df, team)
                 if pid_team:
                     rec["ID"] = str(pid_team)
+                    start_time = self.player_start_times.get(str(pid_team))
+                    if start_time:
+                        rec["StartTime"] = start_time
+
+            if not rec.get("StartTime"):
+                matchup_key = self._canonical_matchup_key(rec.get("Matchup"))
+                if matchup_key:
+                    rec["StartTime"] = self.game_info.get(matchup_key)
 
         return df
 
@@ -2352,10 +2442,31 @@ class NFL_GPP_Simulator:
                 self.seen_lineups_ix[lineup_set] = i
 
     def get_start_time(self, player_id):
+        pid = str(player_id)
+        start = self.player_start_times.get(pid)
+        if start:
+            return start
+
         for _, player in self.player_dict.items():
-            if player["ID"] == player_id:
-                matchup = player["Matchup"]
-                return self.game_info.get(matchup)
+            try:
+                if str(player.get("ID")) != pid:
+                    continue
+            except Exception:
+                continue
+
+            start_time = player.get("StartTime")
+            if start_time:
+                self.player_start_times[pid] = start_time
+                return start_time
+
+            matchup_key = self._canonical_matchup_key(player.get("Matchup"))
+            if matchup_key:
+                start_time = self.game_info.get(matchup_key)
+                if start_time:
+                    player["StartTime"] = start_time
+                    self.player_start_times[pid] = start_time
+                return start_time
+
         return None
 
     def get_player_attribute(self, player_id, attribute):

@@ -2,10 +2,11 @@ import os
 import sys
 import csv
 import pytest
+import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 from nfl_optimizer import NFL_Optimizer
-from lineup_writer_patch import HEADER
+from lineup_writer_patch import HEADER, Player as WriterPlayer, _extract_slots
 
 
 TARGET_HEADER = [
@@ -40,3 +41,24 @@ def test_writer_raises_without_dst():
     opt.lineups[0] = (lineup, fpts_used)
     with pytest.raises(AssertionError):
         opt.output()
+
+
+def test_extract_slots_moves_latest_start_to_flex():
+    early = datetime.datetime(2025, 9, 21, 13, 0)
+    late = datetime.datetime(2025, 9, 21, 16, 25)
+
+    players = [
+        WriterPlayer(name="QB", pos="QB", team="AAA", salary=7000, proj=20, start_time=early),
+        WriterPlayer(name="RB1", pos="RB", team="AAA", salary=6800, proj=18, start_time=early),
+        WriterPlayer(name="RB2", pos="RB", team="AAA", salary=6600, proj=17, start_time=early),
+        WriterPlayer(name="WR Late", pos="WR", team="AAA", salary=7200, proj=19, start_time=late),
+        WriterPlayer(name="WR2", pos="WR", team="AAA", salary=7100, proj=18, start_time=early),
+        WriterPlayer(name="WR3", pos="WR", team="AAA", salary=7000, proj=17, start_time=early),
+        WriterPlayer(name="WR Flex", pos="WR", team="AAA", salary=6900, proj=16, start_time=early),
+        WriterPlayer(name="TE", pos="TE", team="AAA", salary=5000, proj=12, start_time=early),
+        WriterPlayer(name="DST", pos="DST", team="AAA", salary=3000, proj=8, start_time=early),
+    ]
+
+    slots = _extract_slots(players)
+    assert slots["FLEX"].name == "WR Late"
+    assert slots["WR1"].name == "WR Flex"
