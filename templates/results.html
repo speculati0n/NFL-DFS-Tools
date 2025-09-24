@@ -4,20 +4,79 @@
     <title>{{ title }}</title>
     <style>
       table, th, td {border:1px solid #000; border-collapse: collapse; padding:4px;}
+      .card { border:1px solid #444; padding:10px; margin:10px 0; }
+      .kv { font-family: monospace; }
     </style>
   </head>
   <body>
     <h1>{{ title }}</h1>
+
     {% for name, table in tables %}
-      <h2>{{ name }}</h2>
-      {{ table|safe }}
+      <div class="card">
+        <h2>{{ name }}</h2>
+        {{ table|safe }}
+      </div>
     {% endfor %}
+
     {% if lineup_url %}
       <p><a href="{{ lineup_url }}">Download Lineups CSV</a></p>
     {% endif %}
     {% if stack_url %}
       <p><a href="{{ stack_url }}">Download Stack Exposure CSV</a></p>
     {% endif %}
+    {% if diverse_url %}
+      <p><a href="{{ diverse_url }}">Download Diversified Lineups CSV</a></p>
+    {% endif %}
+    {% if sim_diverse_input_url %}
+      <p><a href="{{ sim_diverse_input_url }}">Download Simulator Diversified Inputs CSV</a></p>
+    {% endif %}
+
+    {% if diverse_audit %}
+      <div class="card">
+        <h2>Diversity Audit (Optimizer)</h2>
+        <div class="kv">
+          <div>pairwise_jaccard_mean: {{ diverse_audit.rules.pairwise_jaccard_mean }}</div>
+          <div>player_HHI: {{ diverse_audit.rules.player_HHI }}</div>
+          <div>max_shared_players: {{ diverse_audit.rules.max_shared_players }}</div>
+          <div>min_jaccard_distance: {{ diverse_audit.rules.min_jaccard_distance }}</div>
+          <div>per_player_cap: {{ diverse_audit.rules.per_player_cap }}</div>
+          <div>per_team_cap: {{ diverse_audit.rules.per_team_cap }}</div>
+        </div>
+        {% if diverse_audit.rejections %}
+          <h3>Rejection Reasons</h3>
+          <table>
+            <tr><th>Reason</th><th>Count</th></tr>
+            {% for k, v in diverse_audit.rejections.items() %}
+              <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+            {% endfor %}
+          </table>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if sim_diversity_audit %}
+      <div class="card">
+        <h2>Diversity Audit (Simulator)</h2>
+        <div class="kv">
+          <div>pairwise_jaccard_mean: {{ sim_diversity_audit.rules.pairwise_jaccard_mean }}</div>
+          <div>player_HHI: {{ sim_diversity_audit.rules.player_HHI }}</div>
+          <div>max_shared_players: {{ sim_diversity_audit.rules.max_shared_players }}</div>
+          <div>min_jaccard_distance: {{ sim_diversity_audit.rules.min_jaccard_distance }}</div>
+          <div>per_player_cap: {{ sim_diversity_audit.rules.per_player_cap }}</div>
+          <div>per_team_cap: {{ sim_diversity_audit.rules.per_team_cap }}</div>
+        </div>
+        {% if sim_diversity_audit.rejections %}
+          <h3>Rejection Reasons</h3>
+          <table>
+            <tr><th>Reason</th><th>Count</th></tr>
+            {% for k, v in sim_diversity_audit.rejections.items() %}
+              <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+            {% endfor %}
+          </table>
+        {% endif %}
+      </div>
+    {% endif %}
+
     <a href="/">Back</a>
   </body>
 </html>

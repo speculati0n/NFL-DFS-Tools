@@ -2,6 +2,12 @@
 <html>
   <head>
     <title>NFL DFS Tools</title>
+    <style>
+      fieldset { margin: 1rem 0; }
+      .hint { color:#555; font-size: 0.9rem; }
+      label { display:inline-block; min-width: 180px; }
+      input[type="text"], input[type="number"] { width: 220px; }
+    </style>
   </head>
   <body>
     <h1>NFL DFS Tools</h1>
@@ -14,39 +20,46 @@
       <input type="file" name="projections"><br>
       <label>Player IDs (optional):</label>
       <input type="file" name="players"><br>
-      <label>Contest Structure (optional):</label>
+      <label>Contest (optional):</label>
       <input type="file" name="contest"><br>
-      <label>Config (optional):</label>
-      <input type="file" name="config"><br>
-      <button type="submit">Upload Files</button>
-      <button type="submit" formaction="/reset" formmethod="post">Reset to Repo Files</button>
+      <button type="submit">Upload</button>
     </form>
 
-    <h2>Reset to Repo Files</h2>
-    <form action="/reset" method="post">
-      <label>Site:</label>
-      <input name="site" placeholder="dk or fd" required><br>
-      <button type="submit">Reset Data</button>
-    </form>
-
-    <h2>Optimize Lineups</h2>
+    <h2>Generate Lineups</h2>
     <form action="/optimize" method="post">
       <label>Site:</label>
       <input name="site" placeholder="dk or fd" required><br>
-      <label>Number of Lineups:</label>
+      <label># Lineups:</label>
       <input name="num_lineups" type="number" required><br>
-      <label>Number of Uniques:</label>
-      <input name="num_uniques" type="number" value="1" required><br>
+      <label># Uniques:</label>
+      <input name="num_uniques" type="number" required><br>
       <label>Mode:</label>
       <select name="mode">
         <option value="classic">Classic</option>
         <option value="showdown">Showdown</option>
       </select>
       <label><input type="checkbox" name="save_lineups"> Save lineups for simulator</label><br>
+
+      <fieldset>
+        <legend>Portfolio Diversity (Anti-Cannibalization)</legend>
+        <label><input type="checkbox" name="apply_diversity"> Apply diversity guards</label><br>
+        <div class="hint">Leave fields blank to use defaults.</div>
+        <label>Max shared players:</label>
+        <input name="max_shared_players" type="number" placeholder="6"><br>
+        <label>Min Jaccard distance:</label>
+        <input name="min_jaccard_distance" type="number" step="0.01" placeholder="0.20"><br>
+        <label>Per-player cap (0..1):</label>
+        <input name="per_player_cap" type="number" step="0.01" placeholder="0.45"><br>
+        <label>Per-team cap (0..1):</label>
+        <input name="per_team_cap" type="number" step="0.01" placeholder="0.40"><br>
+        <label>Min stack mix (k:v,k:v):</label>
+        <input name="stack_mix" type="text" placeholder="QB+WR:0.30,QB+WR+TE:0.15,No Stack:0.10">
+      </fieldset>
+
       <button type="submit">Run Optimizer</button>
     </form>
 
-    <h2>Simulate Tournament</h2>
+    <h2>Run Simulation</h2>
     <form action="/simulate" method="post">
       <label>Site:</label>
       <input name="site" placeholder="dk or fd" required><br>
@@ -61,6 +74,23 @@
       </select>
       <label><input type="checkbox" name="use_contest_data"> Use contest structure</label><br>
       <label><input type="checkbox" name="use_lineup_input"> Use saved lineups</label><br>
+
+      <fieldset>
+        <legend>Portfolio Diversity Before Simulation</legend>
+        <label><input type="checkbox" name="apply_diversity_sim"> Apply diversity guards before sim</label><br>
+        <div class="hint">Uses the same guard fields below; leave blank for defaults.</div>
+        <label>Max shared players:</label>
+        <input name="max_shared_players" type="number" placeholder="6"><br>
+        <label>Min Jaccard distance:</label>
+        <input name="min_jaccard_distance" type="number" step="0.01" placeholder="0.20"><br>
+        <label>Per-player cap (0..1):</label>
+        <input name="per_player_cap" type="number" step="0.01" placeholder="0.60"><br>
+        <label>Per-team cap (0..1):</label>
+        <input name="per_team_cap" type="number" step="0.01" placeholder="0.60"><br>
+        <label>Min stack mix (k:v,k:v):</label>
+        <input name="stack_mix" type="text" placeholder="QB+WR:0.30,QB+WR+TE:0.15,No Stack:0.10">
+      </fieldset>
+
       <button type="submit">Run Simulation</button>
     </form>
   </body>
