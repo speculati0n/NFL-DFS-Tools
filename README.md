@@ -79,6 +79,44 @@ Where:
 
 `<num_lineups>` is the number of lineups you want to generate when using the `opto` process.
 
+### Portfolio Diversity (Anti-Cannibalization)
+
+Large portfolio runs can now be filtered through a lightweight diversification pass to prevent the most common self-cannibalisation mistakes.
+
+- **Overlap guards:** enforce a maximum number of shared players between any pair of lineups and a minimum Jaccard distance.
+- **Exposure caps:** keep per-player and per-team exposure below configurable limits based on the requested portfolio size.
+- **Stack mix quotas:** optionally bound the share of key stack archetypes (e.g. `QB+WR`, `QB+WR+TE`, `No Stack`).
+- **Ownership-aware ordering:** when ownership data is available the selector prefers rarer combinations first.
+
+Run the wrappers from the project root:
+
+```bash
+python -m scripts.run_optimizer_diverse
+python -m scripts.run_simulator_with_diversity
+```
+
+The optimiser wrapper writes `output/optimized_lineups_diverse.csv` plus an audit at `output/diversity_audit.json`. The simulator wrapper reuses the same rules, writes `output/simulator_diverse_lineups.csv`, and drops `output/simulator_diversity_audit.json` alongside the standard simulator outputs.
+
+Configuration lives in the normal `config.json`. Add an optional `diversity` block to tune the guards (the values below match the defaults):
+
+```json
+"diversity": {
+  "pool_factor": 4,
+  "max_shared_players": 6,
+  "min_jaccard_distance": 0.20,
+  "per_player_cap": 0.45,
+  "per_team_cap": 0.40,
+  "min_stack_mix": {
+    "QB+WR": 0.30,
+    "QB+WR+TE": 0.15,
+    "No Stack": 0.10
+  },
+  "max_stack_mix": null
+}
+```
+
+The simulator wrapper honours `num_sim_lineups` from `config.json` (defaulting to the size of the filtered pool) so you can request fewer lineups than are available.
+
 `<num_uniques>` defines the number of players that must differ from one lineup to the next. These unique constraints are applied at the time of optimization, so if you ask for 10 lineups with 5 unique players, you will get 10 lineups with 5 unique players. In the past, this was enforced post-optimization, meaning it would prune lineups from the pool if they violated the unique constraints, resulting in fewer lineups than requested.
 
 For example, to generate 1000 lineups for DraftKings, with 3 uniques and randomness, I would execute the following:
