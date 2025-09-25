@@ -1,8 +1,7 @@
 import os
 import json
 import csv
-import threading
-from typing import Dict, List, Optional
+
 
 import pandas as pd
 from flask import Flask, render_template, request, redirect, jsonify, send_file, abort
@@ -25,29 +24,6 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-# progress state for both optimizer and simulator flows
-progress_data: Dict[str, Optional[str]] = {
-    "current": 0,
-    "total": 0,
-    "percent": 0,
-    "status": "idle",
-    "output_path": None,
-    "stack_path": None,
-    "diverse_path": None,
-    "diversity_audit_path": None,
-    "sim_lineup_path": None,
-    "sim_diverse_input_path": None,
-    "sim_diversity_audit_path": None,
-}
-
-def _reset_progress():
-    progress_data.update({
-        "current": 0, "total": 0, "percent": 0, "status": "idle",
-        "output_path": None, "stack_path": None,
-        "diverse_path": None, "diversity_audit_path": None,
-        "sim_lineup_path": None, "sim_diverse_input_path": None, "sim_diversity_audit_path": None,
-    })
 
 @app.route("/")
 def index():
@@ -107,95 +83,6 @@ def optimize():
 
             progress_data["total"] = total
 
-            # Run optimizer (existing behavior); optimizer updates its own output paths
-            opto.optimize(save_lineups=save_lineups)
-
-            # Collect outputs
-            output_path = getattr(opto, "output_path", None) or os.path.join(OUTPUT_DIR, "optimized_lineups.csv")
-            stack_path = getattr(opto, "stack_path", None)
-            progress_data["output_path"] = output_path if os.path.exists(output_path) else None
-            progress_data["stack_path"] = stack_path if stack_path and os.path.exists(stack_path) else None
-
-            # Optional portfolio diversity on optimizer outputs
-            if apply_diversity and progress_data["output_path"]:
-                diverse_csv, audit_json = _apply_diversity_to_optimizer(
-                    opto=opto,
-                    output_csv=progress_data["output_path"],
-                    desired_count=opto.num_lineups,
-                    max_shared_players=max_shared_players,
-                    min_jaccard_distance=min_jaccard_distance,
-                    per_player_cap=per_player_cap,
-                    per_team_cap=per_team_cap,
-                    min_stack_mix=min_stack_mix,
-                )
-                progress_data["diverse_path"] = diverse_csv
-                progress_data["diversity_audit_path"] = audit_json
-
-            progress_data["status"] = "done"
-        except Exception as e:
-            progress_data["status"] = f"error: {e}"
-
-    threading.Thread(target=_run, daemon=True).start()
-    return redirect("/progress")
-
-def _apply_diversity_to_optimizer(
-    *,
-    opto,
-    output_csv: str,
-    desired_count: int,
-    max_shared_players: int,
-    min_jaccard_distance: float,
-    per_player_cap: Optional[float],
-    per_team_cap: Optional[float],
-    min_stack_mix: Optional[Dict[str, float]],
-):
-    # Build Candidate[] from optimizer outputs using optimizer.player_dict for Own% and TeamAbbrev
-    player_dict: Dict = getattr(opto, "player_dict", {}) or {}
-    candidates: List[Candidate] = []
-    with open(output_csv, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            names = [row.get(str(i), "") for i in range(1, 10)]
-            names = [n for n in names if n]
-            owners, teams = [], []
-            for n in names:
-                rec = player_dict.get(n) or {}
-                o = rec.get("Own%", rec.get("Own", 0.0)) or 0.0
-                t = rec.get("TeamAbbrev", rec.get("Team", "")) or ""
-                try:
-                    owners.append(float(o))
-                except Exception:
-                    owners.append(0.0)
-                teams.append(str(t).upper())
-            candidates.append(Candidate(players=names, owners=owners, teams=teams))
-
-    rules = DiversityRules(
-        max_shared_players=max_shared_players,
-        min_jaccard_distance=min_jaccard_distance,
-        per_player_cap=per_player_cap,
-        per_team_cap=per_team_cap,
-        min_stack_mix=min_stack_mix,
-        max_stack_mix=None,
-        lineup_count=desired_count,
-    )
-    result = diversify_portfolio(candidates, rules)
-
-    diverse_csv = os.path.join(OUTPUT_DIR, "optimized_lineups_diverse.csv")
-    with open(diverse_csv, "w", newline="", encoding="utf-8") as f:
-        cols = ["Lineup"] + [str(i) for i in range(1, 10)]
-        w = csv.DictWriter(f, fieldnames=cols)
-        w.writeheader()
-        for idx, names in enumerate(result.lineups, start=1):
-            row = {"Lineup": idx}
-            for i, nm in enumerate(names, start=1):
-                row[str(i)] = nm
-            w.writerow(row)
-
-    audit_json = os.path.join(OUTPUT_DIR, "diversity_audit.json")
-    with open(audit_json, "w", encoding="utf-8") as fo:
-        json.dump({"rules": result.metrics, "rejections": result.reasons_rejected}, fo, indent=2)
-
-    return diverse_csv, audit_json
-
 @app.route("/simulate", methods=["POST"])
 def simulate():
     _reset_progress()
@@ -225,126 +112,6 @@ def simulate():
                 except Exception:
                     pass
         min_stack_mix = tmp or None
-
-    def _run():
-        progress_data["status"] = "running"
-        try:
-            # If diversity is requested before sim, prepare uploads/{site}/tournament_lineups.csv
-            # Prefer diversified optimizer output if present; else use last optimized_lineups.csv if available; else no-op.
-            if apply_diversity_sim:
-                _prep_diverse_sim_inputs(
-                    site=site,
-                    preferred_csv=os.path.join(OUTPUT_DIR, "optimized_lineups_diverse.csv"),
-                    fallback_csv=os.path.join(OUTPUT_DIR, "optimized_lineups.csv"),
-                    max_shared_players=max_shared_players,
-                    min_jaccard_distance=min_jaccard_distance,
-                    per_player_cap=per_player_cap,
-                    per_team_cap=per_team_cap,
-                    min_stack_mix=min_stack_mix,
-                )
-                use_lineup_input = True  # ensure sim reads the prepared file
-
-            if mode == "showdown":
-                sim = NFL_Showdown_Simulator(site, field_size, num_iterations, use_contest_data, use_lineup_input)
-                sim.generate_field_lineups()
-                sim.run_tournament_simulation()
-                lineup_path, exposure_path = sim.save_results()
-                stack_path = None
-            else:
-                sim = NFL_GPP_Simulator(site, field_size, num_iterations, use_contest_data, use_lineup_input)
-                sim.generate_field_lineups()
-                sim.run_tournament_simulation()
-                lineup_path, exposure_path, stack_path = sim.save_results()
-
-            # Prepare tables for /results
-            lineup_df = pd.read_csv(lineup_path)
-            exposure_df = pd.read_csv(exposure_path)
-            tables = [
-                ("Lineups (first 1000)", lineup_df.head(1000).to_html(index=False)),
-                ("Exposure", exposure_df.to_html(index=False)),
-            ]
-            if stack_path and os.path.exists(stack_path):
-                stack_df = pd.read_csv(stack_path)
-                tables.append(("Stack Exposure", stack_df.to_html(index=False)))
-
-            # Stash for results rendering
-            progress_data.update({
-                "output_path": lineup_path,
-                "stack_path": stack_path if stack_path and os.path.exists(stack_path) else None,
-                "status": "done",
-            })
-        except Exception as e:
-            progress_data["status"] = f"error: {e}"
-
-    threading.Thread(target=_run, daemon=True).start()
-    return redirect("/progress")
-
-def _prep_diverse_sim_inputs(
-    *,
-    site: str,
-    preferred_csv: str,
-    fallback_csv: str,
-    max_shared_players: int,
-    min_jaccard_distance: float,
-    per_player_cap: Optional[float],
-    per_team_cap: Optional[float],
-    min_stack_mix: Optional[Dict[str, float]],
-):
-    base_csv = preferred_csv if os.path.exists(preferred_csv) else (fallback_csv if os.path.exists(fallback_csv) else None)
-    if not base_csv:
-        return  # nothing to diversify
-
-    # Read base CSV -> Candidate[] (owners/teams not strictly required for pre-sim filters)
-    rows: List[List[str]] = []
-    with open(base_csv, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            names = [row.get(str(i), "") for i in range(1, 10)]
-            names = [n for n in names if n]
-            if names:
-                rows.append(names)
-
-    candidates = [Candidate(players=ln, owners=None, teams=None) for ln in rows]
-    rules = DiversityRules(
-        max_shared_players=max_shared_players,
-        min_jaccard_distance=min_jaccard_distance,
-        per_player_cap=per_player_cap,
-        per_team_cap=per_team_cap,
-        min_stack_mix=min_stack_mix,
-        max_stack_mix=None,
-        lineup_count=len(candidates),
-    )
-    result = diversify_portfolio(candidates, rules)
-
-    # Write to OUTPUT (for download) and to uploads/{site}/tournament_lineups.csv (for simulator to read)
-    out_csv = os.path.join(OUTPUT_DIR, "simulator_diverse_lineups.csv")
-    with open(out_csv, "w", newline="", encoding="utf-8") as f:
-        cols = ["Lineup"] + [str(i) for i in range(1, 10)]
-        w = csv.DictWriter(f, fieldnames=cols)
-        w.writeheader()
-        for idx, names in enumerate(result.lineups, start=1):
-            row = {"Lineup": idx}
-            for i, nm in enumerate(names, start=1):
-                row[str(i)] = nm
-            w.writerow(row)
-
-    audit_json = os.path.join(OUTPUT_DIR, "simulator_diversity_audit.json")
-    with open(audit_json, "w", encoding="utf-8") as fo:
-        json.dump({"rules": result.metrics, "rejections": result.reasons_rejected}, fo, indent=2)
-
-    site_dir = os.path.join(UPLOAD_DIR, site)
-    os.makedirs(site_dir, exist_ok=True)
-    uploads_tourney = os.path.join(site_dir, "tournament_lineups.csv")
-    # Write the exact format the simulator expects (9 columns, no Lineup index needed)
-    with open(uploads_tourney, "w", newline="", encoding="utf-8") as f:
-        cols = [str(i) for i in range(9)]
-        w = csv.writer(f)
-        for names in result.lineups:
-            # if fewer than 9 (shouldn't happen), pad with blanks
-            row = names[:9] + [""] * max(0, 9 - len(names))
-            w.writerow(row)
-
-    progress_data["sim_diverse_input_path"] = out_csv
-    progress_data["sim_diversity_audit_path"] = audit_json
 
 @app.route("/progress")
 def progress():
@@ -377,6 +144,7 @@ def results():
         stack_df = pd.read_csv(progress_data["stack_path"])
         tables.append(("Stack Exposure", stack_df.to_html(index=False)))
         stack_url = "/download/stacks"
+
 
     # Optimizer diversified portfolio & audit
     if progress_data.get("diverse_path") and os.path.exists(progress_data["diverse_path"]):
