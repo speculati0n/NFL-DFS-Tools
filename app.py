@@ -150,56 +150,7 @@ def results():
             normalized.add(idx + 1)
         return normalized
 
-    def _coerce_lineup_index(value):
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            if isinstance(value, float) and pd.isna(value):
-                return None
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return None
-        if isinstance(value, str):
-            token = value.strip()
-            if not token:
-                return None
-            if token.isdigit():
-                return int(token)
-            match = re.search(r"(\d+)", token)
-            if match:
-                try:
-                    return int(match.group(1))
-                except (TypeError, ValueError):
-                    return None
-            try:
-                return int(float(token))
-            except (TypeError, ValueError):
-                return None
-        return None
 
-    def _annotate_diversified(df, diversified_indices=None, default_is_diversified=False):
-        diversified_indices = diversified_indices or set()
-        annotated = df.copy()
-        column_name = "Diversified"
-
-        if column_name in annotated.columns:
-            annotated = annotated.drop(columns=[column_name])
-
-        if "Lineup" in annotated.columns:
-            flags = []
-            for value in annotated["Lineup"]:
-                idx = _coerce_lineup_index(value)
-                is_diverse = default_is_diversified
-                if idx is not None:
-                    is_diverse = (idx in diversified_indices) or default_is_diversified
-                flags.append(is_diverse)
-            insert_at = annotated.columns.get_loc("Lineup") + 1
-        else:
-            flags = [default_is_diversified] * len(annotated.index)
-            insert_at = 0
-
-        annotated.insert(insert_at, column_name, flags)
         return annotated
 
     optimized_diverse_indices = set()
@@ -211,7 +162,7 @@ def results():
     # Optimizer lineups (first 1000 rows)
     if progress_data.get("output_path") and os.path.exists(progress_data["output_path"]):
         df = pd.read_csv(progress_data["output_path"], nrows=1000)
-        df = _annotate_diversified(df, optimized_diverse_indices, default_is_diversified=False)
+
         tables.append(("Lineups (first 1000)", df.to_html(index=False)))
         lineup_url = "/download/lineups"
 
@@ -225,7 +176,7 @@ def results():
     # Optimizer diversified portfolio & audit
     if progress_data.get("diverse_path") and os.path.exists(progress_data["diverse_path"]):
         df2 = pd.read_csv(progress_data["diverse_path"], nrows=1000)
-        df2 = _annotate_diversified(df2, optimized_diverse_indices, default_is_diversified=True)
+
         tables.append(("Diversified Lineups (first 1000)", df2.to_html(index=False)))
         diverse_url = "/download/diverse_lineups"
 
@@ -238,11 +189,7 @@ def results():
     # Simulator diversified inputs & audit
     if progress_data.get("sim_diverse_input_path") and os.path.exists(progress_data["sim_diverse_input_path"]):
         df3 = pd.read_csv(progress_data["sim_diverse_input_path"], nrows=1000)
-        df3 = _annotate_diversified(
-            df3,
-            sim_diverse_indices,
-            default_is_diversified=not bool(sim_diverse_indices),
-        )
+
         tables.append(("Simulator Diversified Inputs (first 1000)", df3.to_html(index=False)))
         sim_diverse_input_url = "/download/sim_diverse_inputs"
 
