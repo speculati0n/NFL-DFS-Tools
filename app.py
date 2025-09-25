@@ -133,9 +133,56 @@ def results():
     diverse_audit = None
     sim_diversity_audit = None
 
+    def _normalize_indices(values):
+        normalized = set()
+        if not values:
+            return normalized
+        for raw in values:
+            try:
+                idx = int(raw)
+            except (TypeError, ValueError):
+                try:
+                    idx = int(float(raw))
+                except (TypeError, ValueError):
+                    continue
+            # taken_indices are zero-based; display is one-based
+            normalized.add(idx + 1)
+        return normalized
+
+    def _annotate_types(df, default_label, highlight=None):
+        highlight = highlight or set()
+        annotated = df.copy()
+        if "Lineup" in annotated.columns:
+            labels = []
+            for value in annotated["Lineup"]:
+                try:
+                    idx = int(value)
+                except (TypeError, ValueError):
+                    try:
+                        idx = int(float(value))
+                    except (TypeError, ValueError):
+                        idx = None
+                if idx is not None and idx in highlight:
+                    labels.append("Diversified")
+                else:
+                    labels.append(default_label)
+            insert_at = annotated.columns.get_loc("Lineup") + 1
+        else:
+            labels = [default_label] * len(annotated.index)
+            insert_at = 0
+        annotated.insert(insert_at, "Lineup Type", labels)
+        return annotated
+
+    optimized_diverse_indices = set()
+    if progress_data.get("diversity_audit_path") and os.path.exists(progress_data["diversity_audit_path"]):
+        with open(progress_data["diversity_audit_path"], "r", encoding="utf-8") as f:
+            diverse_audit = json.load(f)
+        optimized_diverse_indices = _normalize_indices(diverse_audit.get("taken_indices"))
+
     # Optimizer lineups (first 1000 rows)
     if progress_data.get("output_path") and os.path.exists(progress_data["output_path"]):
         df = pd.read_csv(progress_data["output_path"], nrows=1000)
+        df = _annotate_types(df, "Optimized", optimized_diverse_indices)
         tables.append(("Lineups (first 1000)", df.to_html(index=False)))
         lineup_url = "/download/lineups"
 
@@ -149,22 +196,22 @@ def results():
     # Optimizer diversified portfolio & audit
     if progress_data.get("diverse_path") and os.path.exists(progress_data["diverse_path"]):
         df2 = pd.read_csv(progress_data["diverse_path"], nrows=1000)
+        df2 = _annotate_types(df2, "Diversified")
         tables.append(("Diversified Lineups (first 1000)", df2.to_html(index=False)))
         diverse_url = "/download/diverse_lineups"
 
-    if progress_data.get("diversity_audit_path") and os.path.exists(progress_data["diversity_audit_path"]):
-        with open(progress_data["diversity_audit_path"], "r", encoding="utf-8") as f:
-            diverse_audit = json.load(f)
+    sim_diverse_indices = set()
+    if progress_data.get("sim_diversity_audit_path") and os.path.exists(progress_data["sim_diversity_audit_path"]):
+        with open(progress_data["sim_diversity_audit_path"], "r", encoding="utf-8") as f:
+            sim_diversity_audit = json.load(f)
+        sim_diverse_indices = _normalize_indices(sim_diversity_audit.get("taken_indices"))
 
     # Simulator diversified inputs & audit
     if progress_data.get("sim_diverse_input_path") and os.path.exists(progress_data["sim_diverse_input_path"]):
         df3 = pd.read_csv(progress_data["sim_diverse_input_path"], nrows=1000)
+        df3 = _annotate_types(df3, "Diversified", sim_diverse_indices)
         tables.append(("Simulator Diversified Inputs (first 1000)", df3.to_html(index=False)))
         sim_diverse_input_url = "/download/sim_diverse_inputs"
-
-    if progress_data.get("sim_diversity_audit_path") and os.path.exists(progress_data["sim_diversity_audit_path"]):
-        with open(progress_data["sim_diversity_audit_path"], "r", encoding="utf-8") as f:
-            sim_diversity_audit = json.load(f)
 
     return render_template(
         "results.html",
