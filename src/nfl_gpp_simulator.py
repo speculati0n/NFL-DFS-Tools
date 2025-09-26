@@ -1371,10 +1371,26 @@ class NFL_GPP_Simulator:
                             pass
                         if flex_pool:
                             slot_names["FLEX"] = flex_pool[0]
+                        else:
+                            # try to find any remaining RB/WR/TE that was not
+                            # previously slotted. this protects against older
+                            # saved CSVs that may order players differently or
+                            # contain duplicate primaries (e.g. three RBs but
+                            # only two WRs listed first).
+                            used = set(pid for pid in slot_names.values() if pid)
+                            for pid, pos in details:
+                                if pid in used:
+                                    continue
+                                if pos in {"RB", "WR", "TE"}:
+                                    slot_names["FLEX"] = pid
+                                    break
                     # If any core slot is still missing, bail out gracefully to avoid hanging
                     core_slots = ["QB","RB1","RB2","WR1","WR2","WR3","TE","DST"]
                     if any(slot_names[s] is None for s in core_slots):
                         # skip malformed saved lineup
+                        continue
+                    if slot_names["FLEX"] is None:
+                        # cannot build a valid FLEX, skip this lineup
                         continue
                     # Construct shuffled_lu matching DK order
                     shuffled_lu = [
@@ -1385,7 +1401,11 @@ class NFL_GPP_Simulator:
                     lineup_copy = []  # no longer needed; keep variable around for later code
                     position_counts = {}  # not used with deterministic mapping
 
-                    lineup_list = sorted(shuffled_lu)           
+                    if any(pid is None for pid in shuffled_lu):
+                        # defensive programming: should not happen after checks above
+                        continue
+
+                    lineup_list = sorted(shuffled_lu)
                     lineup_set = frozenset(lineup_list)
 
                     # Keeping track of lineup duplication counts
