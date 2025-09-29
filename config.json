@@ -4,7 +4,7 @@
     "contest_structure_path": "contest_structure.csv",
     "use_double_te": true,
     "global_team_limit": 4,
-    "projection_minimum": 5,
+    "projection_minimum": 2,
     "randomness": 50,
     "min_lineup_salary": 48000,
     "MIN_SALARY_PCT": 0.96,
