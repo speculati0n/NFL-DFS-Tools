@@ -5,7 +5,7 @@
     "use_double_te": false,
     "global_team_limit": 4,
     "projection_minimum": 0,
-    "randomness": 50,
+    "randomness": 25,
     "min_lineup_salary": 49300,
     "MIN_SALARY_PCT": 0.986,
     "max_pct_off_optimal": 0.10,
